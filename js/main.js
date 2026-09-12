@@ -71,13 +71,19 @@ camera.position.set(plate.cx - 380, 780, plate.cz + 1860);
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-controls.dampingFactor = 0.06;
+controls.dampingFactor = 0.08;
+controls.enablePan = true;
+controls.screenSpacePanning = true;
+controls.panSpeed = 1.35;
+controls.rotateSpeed = 0.72;
 controls.minDistance = 50;
 controls.maxDistance = 3200;
 controls.minPolarAngle = 0.12;
 controls.maxPolarAngle = Math.PI * 0.495;
 controls.target.set(plate.cx, 2, plate.cz);
 controls.autoRotate = false;
+controls.touches.ONE = THREE.TOUCH.PAN;
+controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
 
 const sky = createSkyDome();
 scene.add(sky);
