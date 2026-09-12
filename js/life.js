@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { toXZ } from "./geo.js";
 
 export function updateLife(city, dt, night, hour = 12) {
   if (city.wheel?.userData.spin) {
@@ -171,7 +172,18 @@ export function createRockets() {
   const pads = [
     new THREE.Vector3(-14, 0, 10),
     new THREE.Vector3(16, 0, -8),
+    new THREE.Vector3(8, 0, 18),
+    new THREE.Vector3(-22, 0, -6),
   ];
+  for (const [lon, lat, y] of [
+    [6.18335, 48.69238, 110],
+    [6.17315, 48.68925, 120],
+    [6.1947, 48.69325, 104],
+    [6.18235, 48.69555, 1],
+  ]) {
+    const p = toXZ(lon, lat);
+    pads.push(new THREE.Vector3(p.x, y, p.z));
+  }
   const waiting = [];
   for (const p of pads) {
     const pad = new THREE.Mesh(
@@ -179,7 +191,7 @@ export function createRockets() {
       new THREE.MeshStandardMaterial({ color: "#4a453c", metalness: 0.4, roughness: 0.55 })
     );
     pad.position.copy(p);
-    pad.position.y = 0.14;
+    pad.position.y = p.y + 0.14;
     group.add(pad);
     const mesh = makeRocketMesh();
     mesh.position.copy(p);
@@ -193,7 +205,7 @@ export function createRockets() {
     trail,
     trailPos,
     trailN,
-    acc: 4,
+    acc: 0.4,
     origin: new THREE.Vector3(0, 0, 0),
   };
 }
@@ -211,7 +223,7 @@ function launchRocket(sys) {
   sys.flying.push({
     mesh,
     pad: idle || null,
-    vel: new THREE.Vector3((Math.random() - 0.5) * 2.4, 18, (Math.random() - 0.5) * 2.4),
+    vel: new THREE.Vector3((Math.random() - 0.5) * 4.2, 16 + Math.random() * 8, (Math.random() - 0.5) * 4.2),
     age: 0,
   });
 }
@@ -233,8 +245,8 @@ function updateRockets(sys, dt, night) {
   }
   for (const w of sys.waiting) w.mesh.visible = !w.busy;
   sys.acc += dt;
-  if (sys.acc > 7 && sys.flying.length < 2) {
-    sys.acc = 0;
+  if (sys.acc > 1.65 && sys.flying.length < 6) {
+    sys.acc = Math.random() * 0.55;
     launchRocket(sys);
   }
   const tp = sys.trailPos;
