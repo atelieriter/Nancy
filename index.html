@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./css/style.css?v=20260912d" />
+    <link rel="stylesheet" href="./css/style.css?v=20260912e" />
     <script type="importmap">
       {
         "imports": {
@@ -40,11 +40,11 @@
         <p class="coords">48°41′N&ensp;6°11′E<span>Grand Est</span></p>
       </header>
 
-      <aside class="explorer">
-        <div class="explorer-head">
+      <aside class="explorer" id="explorer">
+        <button type="button" class="explorer-head" id="explorer-toggle" aria-expanded="true">
           <span>À explorer</span>
           <span id="place-count">00</span>
-        </div>
+        </button>
         <div class="places" id="places"></div>
         <p class="credit">
           Produit par <a href="https://atelieriter.com" target="_blank" rel="noopener">atelieriter</a><br />
@@ -52,12 +52,12 @@
         </p>
       </aside>
 
-      <footer class="dock">
-        <div class="clock-block">
+      <footer class="dock" id="dock">
+        <button type="button" class="clock-block" id="dock-toggle" aria-expanded="true">
           <p class="kicker">Nancy, à cet instant</p>
           <div id="clock">14:30</div>
           <p id="period">L’après-midi</p>
-        </div>
+        </button>
         <div class="slider-wrap">
           <input id="hour" type="range" min="0" max="23.99" step="0.05" value="14.5" />
           <div class="ticks">
@@ -98,6 +98,6 @@
         }
       }, 8000);
     </script>
-    <script type="module" src="./js/main.js?v=20260912d"></script>
+    <script type="module" src="./js/main.js?v=20260912e"></script>
   </body>
 </html>

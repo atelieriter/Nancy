@@ -340,6 +340,15 @@ export function makeFlyer() {
   return makeVehicle("car");
 }
 
+function lamp(color, w, h, d) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.15 })
+  );
+  mesh.userData.nightLamp = true;
+  return mesh;
+}
+
 export function makeVehicle(kind = "car") {
   const g = new THREE.Group();
   const hullC = flyerPaint();
@@ -349,22 +358,33 @@ export function makeVehicle(kind = "car") {
     opacity: 0.5,
     metalness: 0.2,
     roughness: 0.15,
+    emissive: new THREE.Color("#c8e8ff"),
+    emissiveIntensity: 0,
   });
   const metal = new THREE.MeshStandardMaterial({
     color: hullC,
     metalness: 0.55,
     roughness: 0.28,
+    emissive: new THREE.Color("#3a2a18"),
+    emissiveIntensity: 0,
   });
+  const lamps = [];
   if (kind === "scooter") {
     const deck = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.28, 0.95), metal);
     const stem = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.35, 0.22), metal);
     stem.position.set(1.05, 0.75, 0);
     const glow = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 0.12, 0.6),
-      new THREE.MeshBasicMaterial({ color: "#ffe08a" })
+      new THREE.MeshBasicMaterial({ color: "#ffe08a", transparent: true, opacity: 0.2 })
     );
     glow.position.y = -0.28;
-    g.add(deck, stem, glow);
+    glow.userData.nightLamp = true;
+    const head = lamp("#fff4c8", 0.18, 0.18, 0.18);
+    head.position.set(1.55, 0.55, 0);
+    const tail = lamp("#ff4a3a", 0.16, 0.16, 0.16);
+    tail.position.set(-1.5, 0.22, 0);
+    g.add(deck, stem, glow, head, tail);
+    lamps.push(glow, head, tail);
   } else if (kind === "pod") {
     const body = new THREE.Mesh(new THREE.SphereGeometry(1.45, 8, 6), metal);
     body.scale.set(1.2, 0.75, 1);
@@ -372,11 +392,17 @@ export function makeVehicle(kind = "car") {
     cap.position.y = 0.45;
     const glow = new THREE.Mesh(
       new THREE.CircleGeometry(1.0, 8),
-      new THREE.MeshBasicMaterial({ color: "#ffe08a", side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ color: "#ffe08a", side: THREE.DoubleSide, transparent: true, opacity: 0.2 })
     );
     glow.rotation.x = Math.PI / 2;
     glow.position.y = -0.7;
-    g.add(body, cap, glow);
+    glow.userData.nightLamp = true;
+    const head = lamp("#fff4c8", 0.28, 0.2, 0.22);
+    head.position.set(1.5, 0.05, 0);
+    const tail = lamp("#ff3a32", 0.24, 0.18, 0.2);
+    tail.position.set(-1.45, 0.05, 0);
+    g.add(body, cap, glow, head, tail);
+    lamps.push(glow, head, tail);
   } else {
     const hull = new THREE.Mesh(new THREE.BoxGeometry(7.6, 1.55, 3.1), metal);
     const canopy = new THREE.Mesh(
@@ -386,11 +412,24 @@ export function makeVehicle(kind = "car") {
     canopy.position.set(0.7, 0.62, 0);
     const glow = new THREE.Mesh(
       new THREE.BoxGeometry(5.2, 0.14, 1.8),
-      new THREE.MeshBasicMaterial({ color: "#ffe08a" })
+      new THREE.MeshBasicMaterial({ color: "#ffe08a", transparent: true, opacity: 0.2 })
     );
     glow.position.y = -0.78;
-    g.add(hull, canopy, glow);
+    glow.userData.nightLamp = true;
+    const hl = lamp("#fff6d0", 0.22, 0.22, 0.28);
+    const hr = lamp("#fff6d0", 0.22, 0.22, 0.28);
+    hl.position.set(3.7, 0.15, 1.05);
+    hr.position.set(3.7, 0.15, -1.05);
+    const tl = lamp("#ff2e28", 0.2, 0.2, 0.22);
+    const tr = lamp("#ff2e28", 0.2, 0.2, 0.22);
+    tl.position.set(-3.7, 0.2, 1.05);
+    tr.position.set(-3.7, 0.2, -1.05);
+    g.add(hull, canopy, glow, hl, hr, tl, tr);
+    lamps.push(glow, hl, hr, tl, tr);
   }
+  g.userData.nightLamps = lamps;
+  g.userData.hull = metal;
+  g.userData.glass = glass;
   return g;
 }
 
@@ -401,20 +440,27 @@ function smoothstep(a, b, x) {
 
 export function trafficLevel(hour) {
   const h = ((hour % 24) + 24) % 24;
-  const day = smoothstep(7.3, 8.05, h) * (1 - smoothstep(19.7, 21.1, h));
+  const day = smoothstep(7.1, 7.9, h) * (1 - smoothstep(20.2, 21.6, h));
   const rush = Math.max(
-    smoothstep(7.6, 8.3, h) * (1 - smoothstep(9.3, 10.2, h)),
-    smoothstep(16.6, 17.4, h) * (1 - smoothstep(18.8, 20.0, h))
+    smoothstep(7.5, 8.2, h) * (1 - smoothstep(9.4, 10.4, h)),
+    smoothstep(16.5, 17.3, h) * (1 - smoothstep(18.9, 20.2, h))
   );
-  return THREE.MathUtils.clamp(0.07 + day * 0.82 + rush * 0.12, 0.07, 1);
+  return THREE.MathUtils.clamp(0.28 + day * 0.62 + rush * 0.18, 0.28, 1);
 }
 
 export function updateFlyers(flyers, dt, night, hour) {
   if (!flyers?.length) return;
   const level = trafficLevel(hour);
+  const lit = night > 0.22;
   for (const f of flyers) {
     const on = level >= (f.threshold ?? 0.22);
     f.mesh.visible = on;
+    if (f.mesh.userData.hull) f.mesh.userData.hull.emissiveIntensity = lit ? 0.22 : 0;
+    if (f.mesh.userData.glass) f.mesh.userData.glass.emissiveIntensity = lit ? 0.55 : 0;
+    for (const lamp of f.mesh.userData.nightLamps || []) {
+      lamp.visible = on;
+      if (lamp.material) lamp.material.opacity = lit ? 0.95 : 0.12;
+    }
     if (!on || !f.curve) continue;
     f.t = (f.t + dt * f.speed * (0.65 + level * 0.9)) % 1;
     const p = f.curve.getPointAt(f.t);

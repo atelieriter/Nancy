@@ -989,18 +989,18 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
     if ((r.coords || []).length < 5) continue;
     const mid = r.coords[Math.floor(r.coords.length / 2)];
     const p = toXZ(mid[0], mid[1]);
-    if (Math.hypot(p.x, p.z) > 640) continue;
+    if (Math.hypot(p.x, p.z) > 920) continue;
     routes.push(r);
   }
   routes.sort((a, b) => b.coords.length - a.coords.length);
 
-  for (let lane = 0; lane < 3; lane++) {
+  for (let lane = 0; lane < 5; lane++) {
     const orbit = [];
-    const ry = 9 + lane * 7;
-    const rx = 88 + lane * 18;
-    const rz = 64 + lane * 14;
-    for (let a = 0; a <= 18; a++) {
-      const ang = (a / 18) * Math.PI * 2;
+    const ry = 8 + lane * 6.2;
+    const rx = 78 + lane * 22;
+    const rz = 56 + lane * 18;
+    for (let a = 0; a <= 20; a++) {
+      const ang = (a / 20) * Math.PI * 2;
       const lx = Math.cos(ang) * rx;
       const lz = Math.sin(ang) * rz;
       const x = lx * Math.cos(AXIS_YAW) + lz * Math.sin(AXIS_YAW);
@@ -1008,9 +1008,9 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
       orbit.push(new THREE.Vector3(x, ry, z));
     }
     const orbitCurve = new THREE.CatmullRomCurve3(orbit, true);
-    const n = 5;
+    const n = 8;
     for (let i = 0; i < n; i++) {
-      spawn(orbitCurve, kinds[(lane + i) % kinds.length], 0.014 + lane * 0.004, 0.06 + i * 0.08, i / n, i + lane);
+      spawn(orbitCurve, kinds[(lane + i) % kinds.length], 0.014 + lane * 0.003, 0.04 + i * 0.05, i / n, i + lane);
     }
   }
 
@@ -1024,8 +1024,10 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
   const axisCurve = new THREE.CatmullRomCurve3(axis);
   spawn(axisCurve, "car", 0.022, 0.08, 0.05, 0.4);
-  spawn(axisCurve, "scooter", 0.028, 0.12, 0.35, 1.1);
-  spawn(axisCurve, "car", 0.02, 0.1, 0.7, 2.2);
+  spawn(axisCurve, "scooter", 0.028, 0.1, 0.22, 1.1);
+  spawn(axisCurve, "car", 0.02, 0.08, 0.48, 2.2);
+  spawn(axisCurve, "pod", 0.024, 0.1, 0.72, 0.8);
+  spawn(axisCurve, "scooter", 0.03, 0.12, 0.88, 1.6);
   const cross = [];
   for (let i = -6; i <= 6; i++) {
     const lx = 0;
@@ -1035,26 +1037,28 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
     cross.push(new THREE.Vector3(x, 12, z));
   }
   const crossCurve = new THREE.CatmullRomCurve3(cross);
-  spawn(crossCurve, "pod", 0.024, 0.08, 0.2, 0.6);
-  spawn(crossCurve, "car", 0.02, 0.1, 0.65, 1.8);
+  spawn(crossCurve, "pod", 0.024, 0.08, 0.12, 0.6);
+  spawn(crossCurve, "car", 0.02, 0.08, 0.4, 1.8);
+  spawn(crossCurve, "scooter", 0.026, 0.1, 0.68, 0.3);
+  spawn(crossCurve, "car", 0.018, 0.1, 0.88, 2.4);
 
-  const used = Math.min(36, routes.length);
+  const used = Math.min(52, routes.length);
   for (let i = 0; i < used; i++) {
-    const alt = 6 + (i % 5) * 4.2;
+    const alt = 6 + (i % 6) * 3.8;
     const pts = routes[i].coords.map(([lon, lat]) => {
       const q = toXZ(lon, lat);
       return new THREE.Vector3(q.x, alt, q.z);
     });
     if (pts.length < 2) continue;
     const curve = new THREE.CatmullRomCurve3(pts);
-    const copies = i < 14 ? 3 : 2;
+    const copies = i < 20 ? 5 : 3;
     for (let k = 0; k < copies; k++) {
       spawn(
         curve,
         kinds[(i + k) % kinds.length],
         0.012 + (i % 5) * 0.003,
-        0.05 + ((i * 0.04 + k * 0.08) % 0.35),
-        (k * 0.37 + i * 0.11) % 1,
+        0.04 + ((i * 0.03 + k * 0.05) % 0.28),
+        (k * 0.29 + i * 0.11) % 1,
         i * 0.8 + k
       );
     }
@@ -1075,8 +1079,9 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
       new THREE.Vector3(pad.x, pad.y, pad.z),
     ];
     const curve = new THREE.CatmullRomCurve3(loop, true);
-    spawn(curve, "car", 0.01, 0.16, Math.random(), 2);
-    spawn(curve, "pod", 0.013, 0.28, 0.5, 3);
+    spawn(curve, "car", 0.01, 0.12, Math.random(), 2);
+    spawn(curve, "pod", 0.013, 0.16, 0.33, 3);
+    spawn(curve, "scooter", 0.016, 0.18, 0.66, 1.4);
   }
 
   onProgress?.(0.92);

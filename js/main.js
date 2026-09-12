@@ -17,6 +17,41 @@ const wxSun = document.getElementById("wx-sun");
 const wxSnow = document.getElementById("wx-snow");
 const placesEl = document.getElementById("places");
 const placeCountEl = document.getElementById("place-count");
+const explorerEl = document.getElementById("explorer");
+const explorerToggle = document.getElementById("explorer-toggle");
+const dockEl = document.getElementById("dock");
+const dockToggle = document.getElementById("dock-toggle");
+
+const isMobile = () => window.matchMedia("(max-width: 780px)").matches;
+
+function setPanel(el, btn, open) {
+  el?.classList.toggle("open", open);
+  btn?.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function syncPanels() {
+  const mobile = isMobile();
+  setPanel(explorerEl, explorerToggle, !mobile);
+  setPanel(dockEl, dockToggle, !mobile);
+}
+
+let lastMobile = isMobile();
+syncPanels();
+window.addEventListener("resize", () => {
+  const mobile = isMobile();
+  if (mobile === lastMobile) return;
+  lastMobile = mobile;
+  syncPanels();
+});
+
+explorerToggle?.addEventListener("click", () => {
+  if (!isMobile()) return;
+  setPanel(explorerEl, explorerToggle, !explorerEl.classList.contains("open"));
+});
+dockToggle?.addEventListener("click", () => {
+  if (!isMobile()) return;
+  setPanel(dockEl, dockToggle, !dockEl.classList.contains("open"));
+});
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -135,6 +170,7 @@ LANDMARKS.forEach((lm, i) => {
       toCam: new THREE.Vector3(p.x + o.dx, o.dy, p.z + o.dz),
       t: 0,
     };
+    if (isMobile()) setPanel(explorerEl, explorerToggle, false);
   });
   placesEl?.appendChild(btn);
 });
