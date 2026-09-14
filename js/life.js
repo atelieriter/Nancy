@@ -83,7 +83,7 @@ function makeSkyOrb(radius, glowScale) {
   const g = new THREE.Group();
   const core = new THREE.Mesh(
     new THREE.SphereGeometry(radius, 20, 16),
-    new THREE.MeshBasicMaterial({ color: "#ffffff", fog: false, toneMapped: false, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: "#ffffff", fog: false, toneMapped: false, depthTest: true, depthWrite: false })
   );
   const halo = new THREE.Mesh(
     new THREE.SphereGeometry(radius * glowScale, 16, 12),
@@ -93,6 +93,7 @@ function makeSkyOrb(radius, glowScale) {
       opacity: 0.28,
       fog: false,
       toneMapped: false,
+      depthTest: true,
       depthWrite: false,
     })
   );
@@ -125,15 +126,16 @@ function fillSphere(n, rMin, rMax, full = true) {
 /** Étoiles lointaines, petites, sphère complète (y compris sous le plan). */
 export function createStars() {
   const n = 2200;
-  const { pos, col } = fillSphere(n, 2550, 2680, true);
+  const { pos, col } = fillSphere(n, 4300, 4900, true);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
   const mat = new THREE.PointsMaterial({
-    size: 1.15,
+    size: 1.1,
     vertexColors: true,
     transparent: true,
     opacity: 0,
+    depthTest: true,
     depthWrite: false,
     sizeAttenuation: false,
     blending: THREE.AdditiveBlending,
@@ -142,14 +144,14 @@ export function createStars() {
   });
   const points = new THREE.Points(geo, mat);
   points.frustumCulled = false;
-  points.renderOrder = -14;
+  points.renderOrder = -18;
   return points;
 }
 
 /** Coquille proche : débris / objets en orbite basse, pas des étoiles. */
 export function createDebris() {
   const n = 2400;
-  const { pos, col } = fillSphere(n, 920, 1580, true);
+  const { pos, col } = fillSphere(n, 3400, 4000, true);
   for (let i = 0; i < n; i++) {
     const g = 0.42 + Math.random() * 0.38;
     col[i * 3] = g;
@@ -160,10 +162,11 @@ export function createDebris() {
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
   const mat = new THREE.PointsMaterial({
-    size: 2.1,
+    size: 3.4,
     vertexColors: true,
     transparent: true,
     opacity: 0.2,
+    depthTest: true,
     depthWrite: false,
     sizeAttenuation: true,
     blending: THREE.AdditiveBlending,
@@ -171,7 +174,7 @@ export function createDebris() {
   });
   const points = new THREE.Points(geo, mat);
   points.frustumCulled = false;
-  points.renderOrder = -11;
+  points.renderOrder = -16;
   return points;
 }
 
@@ -193,14 +196,14 @@ export function createCelestial() {
   group.frustumCulled = false;
   const sky = createSkyDome();
   const stars = createStars();
-  group.add(sky, stars);
+  const debris = createDebris();
+  group.add(sky, stars, debris);
 
   const world = new THREE.Group();
   world.name = "horizon";
   const sun = makeSkyOrb(78, 2.5);
-  const moon = makeSkyOrb(52, 2.1);
-  const debris = createDebris();
-  world.add(sun, moon, debris);
+  const moon = makeSkyOrb(56, 2.2);
+  world.add(sun, moon);
 
   return { group, world, sky, stars, sun, moon, debris };
 }
@@ -209,9 +212,9 @@ export function applyCelestial(celestial, state) {
   if (!celestial) return;
   const dist = 2300;
   const az = state.az;
-  const y = -110 + Math.max(0, state.elev) * 40;
+  const y = 58 + Math.max(0, state.elev) * 36;
   celestial.sun.position.set(Math.cos(az) * dist, y, Math.sin(az) * dist);
-  celestial.moon.position.set(-Math.cos(az) * dist, y - 28, -Math.sin(az) * dist);
+  celestial.moon.position.set(-Math.cos(az) * dist, y + 8, -Math.sin(az) * dist);
 
   const sunAmt = THREE.MathUtils.clamp(1 - state.night * 1.35, 0, 1);
   const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
@@ -225,9 +228,9 @@ export function applyCelestial(celestial, state) {
   celestial.sun.userData.core.material.color.set(sunCol);
   celestial.sun.userData.halo.material.color.set(sunCol);
   celestial.sun.userData.halo.material.opacity = 0.18 + sunAmt * 0.28;
-  celestial.moon.userData.core.material.color.set("#f4f6fb");
-  celestial.moon.userData.halo.material.color.set("#d7e0f0");
-  celestial.moon.userData.halo.material.opacity = 0.16 + moonAmt * 0.22;
+  celestial.moon.userData.core.material.color.set("#f7f0e2");
+  celestial.moon.userData.halo.material.color.set("#fff6e8");
+  celestial.moon.userData.halo.material.opacity = 0.22 + moonAmt * 0.28;
 
   const u = celestial.sky.material.uniforms;
   u.uTop.value.copy(state.sky);

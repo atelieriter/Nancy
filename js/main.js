@@ -66,7 +66,7 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2("#c8d6c0", 0.00075);
 
 const plate = plateauRect();
-const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 2.4, 5200);
+const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 2.4, 9000);
 camera.position.set(plate.cx - 380, 780, plate.cz + 1860);
 
 const controls = new OrbitControls(camera, canvas);
