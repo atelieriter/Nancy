@@ -176,7 +176,7 @@ function makeSkyOrb(radius) {
       depthWrite: false,
     })
   );
-  const inner = glowSprite(radius * 1.38, 0.32);
+  const inner = glowSprite(radius * 2.16, 0.18);
   g.add(inner, core);
   g.userData.core = core;
   g.userData.halo = inner;
@@ -280,8 +280,8 @@ export function createCelestial() {
 
   const world = new THREE.Group();
   world.name = "horizon";
-  const sun = makeSkyOrb(240);
-  const moon = makeSkyOrb(190);
+  const sun = makeSkyOrb(1200);
+  const moon = makeSkyOrb(950);
   world.add(sun, moon);
 
   return { group, world, sky, stars: null, sun, moon, debris };
@@ -289,7 +289,7 @@ export function createCelestial() {
 
 export function applyCelestial(celestial, state) {
   if (!celestial) return;
-  const dist = 1680;
+  const dist = 3200;
   const az = state.az;
   const y = 58 + Math.max(0, state.elev) * 36;
   celestial.sun.position.set(Math.cos(az) * dist, y, Math.sin(az) * dist);
@@ -307,12 +307,12 @@ export function applyCelestial(celestial, state) {
   celestial.sun.userData.core.material.color.set(sunCol);
   if (celestial.sun.userData.halo) {
     celestial.sun.userData.halo.material.color.set(sunCol);
-    celestial.sun.userData.halo.material.opacity = 0.16 + sunAmt * 0.14;
+    celestial.sun.userData.halo.material.opacity = 0.12 + sunAmt * 0.1;
   }
   celestial.moon.userData.core.material.color.set("#fffaf2");
   if (celestial.moon.userData.halo) {
     celestial.moon.userData.halo.material.color.set("#fff6e4");
-    celestial.moon.userData.halo.material.opacity = 0.18 + moonAmt * 0.12;
+    celestial.moon.userData.halo.material.opacity = 0.12 + moonAmt * 0.1;
   }
 
   const u = celestial.sky.material.uniforms;
