@@ -269,8 +269,8 @@ export function createCelestial() {
 
   const world = new THREE.Group();
   world.name = "horizon";
-  const sun = makeSkyOrb(1000);
-  const moon = makeSkyOrb(950);
+  const sun = makeSkyOrb(800);
+  const moon = makeSkyOrb(760);
   world.add(sun, moon);
 
   return { group, world, sky, stars: null, sun, moon, debris };
@@ -280,14 +280,12 @@ export function applyCelestial(celestial, state) {
   if (!celestial) return;
   const dist = 3200;
   const az = state.az;
-  const rise = 2200;
-  const sunY = state.elev * rise;
-  const moonY = -state.elev * rise;
-  celestial.sun.position.set(Math.cos(az) * dist, sunY, Math.sin(az) * dist);
-  celestial.moon.position.set(-Math.cos(az) * dist, moonY, -Math.sin(az) * dist);
+  const y = 72;
+  celestial.sun.position.set(Math.cos(az) * dist, y, Math.sin(az) * dist);
+  celestial.moon.position.set(-Math.cos(az) * dist, y, -Math.sin(az) * dist);
 
-  const sunAmt = THREE.MathUtils.smoothstep(sunY, -280, 90);
-  const moonAmt = THREE.MathUtils.smoothstep(moonY, -280, 90);
+  const sunAmt = THREE.MathUtils.clamp(1 - state.night * 1.35, 0, 1);
+  const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
   celestial.sun.visible = sunAmt > 0.02;
   celestial.moon.visible = moonAmt > 0.02;
   celestial.sun.userData.core.material.opacity = sunAmt;
