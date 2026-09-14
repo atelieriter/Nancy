@@ -125,31 +125,28 @@ export function createSkyDome() {
   return mesh;
 }
 
-function makeGlowMap() {
+function makeHardDiscMap() {
+  const size = 512;
   const c = document.createElement("canvas");
-  c.width = c.height = 256;
+  c.width = c.height = size;
   const ctx = c.getContext("2d");
-  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  g.addColorStop(0, "rgba(255,255,255,0.55)");
-  g.addColorStop(0.18, "rgba(255,255,255,0.18)");
-  g.addColorStop(0.4, "rgba(255,255,255,0.03)");
-  g.addColorStop(0.58, "rgba(255,255,255,0)");
-  g.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 256, 256);
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
-let GLOW_MAP;
+let DISC_MAP;
 
-function glowSprite(scale, opacity) {
-  if (!GLOW_MAP) GLOW_MAP = makeGlowMap();
+function discSprite(scale, opacity, renderOrder) {
+  if (!DISC_MAP) DISC_MAP = makeHardDiscMap();
   const mat = new THREE.SpriteMaterial({
-    map: GLOW_MAP,
+    map: DISC_MAP,
     color: "#ffffff",
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
     transparent: true,
     opacity,
     depthTest: true,
@@ -159,27 +156,19 @@ function glowSprite(scale, opacity) {
   });
   const s = new THREE.Sprite(mat);
   s.scale.set(scale, scale, 1);
-  s.renderOrder = -13;
+  s.renderOrder = renderOrder;
   s.frustumCulled = false;
   return s;
 }
 
 function makeSkyOrb(radius) {
   const g = new THREE.Group();
-  const core = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 18),
-    new THREE.MeshBasicMaterial({
-      color: "#ffffff",
-      fog: false,
-      toneMapped: false,
-      depthTest: true,
-      depthWrite: false,
-    })
-  );
-  const inner = glowSprite(radius * 2.16, 0.18);
-  g.add(inner, core);
+  const d = radius * 2;
+  const halo = discSprite(d * 1.07, 0.14, -13);
+  const core = discSprite(d, 1, -12);
+  g.add(halo, core);
   g.userData.core = core;
-  g.userData.halo = inner;
+  g.userData.halo = halo;
   g.renderOrder = -12;
   g.frustumCulled = false;
   return g;
@@ -307,12 +296,12 @@ export function applyCelestial(celestial, state) {
   celestial.sun.userData.core.material.color.set(sunCol);
   if (celestial.sun.userData.halo) {
     celestial.sun.userData.halo.material.color.set(sunCol);
-    celestial.sun.userData.halo.material.opacity = 0.12 + sunAmt * 0.1;
+    celestial.sun.userData.halo.material.opacity = 0.1 + sunAmt * 0.06;
   }
   celestial.moon.userData.core.material.color.set("#fffaf2");
   if (celestial.moon.userData.halo) {
     celestial.moon.userData.halo.material.color.set("#fff6e4");
-    celestial.moon.userData.halo.material.opacity = 0.12 + moonAmt * 0.1;
+    celestial.moon.userData.halo.material.opacity = 0.1 + moonAmt * 0.06;
   }
 
   const u = celestial.sky.material.uniforms;
