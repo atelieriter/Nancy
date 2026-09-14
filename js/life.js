@@ -37,9 +37,9 @@ export function updateLife(city, dt, night, hour = 12) {
     }
   }
 
-  updateStars(city.stars, night);
+  updateStars(city.stars, city.debris, night);
   updateRockets(city.rockets, dt, night);
-  updateSatellites(city.satellites, dt, night);
+  updateSatellites(city.satellites, dt, night, hour);
   updateFlyers(city.flyers, dt, night, hour);
   updateLoop(city.loop, dt, hour);
 }
@@ -104,28 +104,114 @@ function makeSkyOrb(radius, glowScale) {
   return g;
 }
 
-/** Ciel + astres + étoiles, calés sur la caméra (fond infini, rotation monde). */
+function fillSphere(n, rMin, rMax, full = true) {
+  const pos = new Float32Array(n * 3);
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = full ? Math.acos(2 * Math.random() - 1) : Math.acos(0.02 + Math.random() * 0.98);
+    const r = rMin + Math.random() * (rMax - rMin);
+    pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    pos[i * 3 + 1] = r * Math.cos(phi);
+    pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    const w = 0.55 + Math.random() * 0.45;
+    col[i * 3] = w;
+    col[i * 3 + 1] = w * (0.9 + Math.random() * 0.1);
+    col[i * 3 + 2] = w * (0.82 + Math.random() * 0.18);
+  }
+  return { pos, col };
+}
+
+/** Étoiles lointaines, petites, sphère complète (y compris sous le plan). */
+export function createStars() {
+  const n = 2200;
+  const { pos, col } = fillSphere(n, 2550, 2680, true);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 1.15,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    sizeAttenuation: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+    toneMapped: false,
+  });
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  points.renderOrder = -14;
+  return points;
+}
+
+/** Coquille proche : débris / objets en orbite basse, pas des étoiles. */
+export function createDebris() {
+  const n = 2400;
+  const { pos, col } = fillSphere(n, 920, 1580, true);
+  for (let i = 0; i < n; i++) {
+    const g = 0.42 + Math.random() * 0.38;
+    col[i * 3] = g;
+    col[i * 3 + 1] = g * 0.96;
+    col[i * 3 + 2] = g * 0.9;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 2.1,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.2,
+    depthWrite: false,
+    sizeAttenuation: true,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  });
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  points.renderOrder = -11;
+  return points;
+}
+
+function updateStars(stars, debris, night) {
+  if (stars) {
+    stars.material.opacity = THREE.MathUtils.clamp(night * 0.9, 0, 0.9);
+    stars.visible = night > 0.08;
+  }
+  if (debris) {
+    debris.material.opacity = 0.14 + THREE.MathUtils.clamp(night, 0, 1) * 0.55;
+    debris.visible = true;
+  }
+}
+
+/** Ciel + étoiles lointaines (suivent la caméra). Soleil / lune / débris restent au monde. */
 export function createCelestial() {
   const group = new THREE.Group();
   group.name = "celestial";
   group.frustumCulled = false;
   const sky = createSkyDome();
   const stars = createStars();
-  const sun = makeSkyOrb(95, 2.7);
-  const moon = makeSkyOrb(62, 2.2);
-  group.add(sky, stars, sun, moon);
-  return { group, sky, stars, sun, moon };
+  group.add(sky, stars);
+
+  const world = new THREE.Group();
+  world.name = "horizon";
+  const sun = makeSkyOrb(78, 2.5);
+  const moon = makeSkyOrb(52, 2.1);
+  const debris = createDebris();
+  world.add(sun, moon, debris);
+
+  return { group, world, sky, stars, sun, moon, debris };
 }
 
 export function applyCelestial(celestial, state) {
   if (!celestial) return;
-  const dist = 2100;
+  const dist = 2300;
   const az = state.az;
-  const visY = 0.22 + Math.max(0, state.elev) * 0.2;
-  const sunDir = new THREE.Vector3(Math.cos(az), visY, Math.sin(az)).normalize();
-  const moonDir = new THREE.Vector3(-Math.cos(az), 0.28, -Math.sin(az)).normalize();
-  celestial.sun.position.copy(sunDir).multiplyScalar(dist);
-  celestial.moon.position.copy(moonDir).multiplyScalar(dist);
+  const y = -110 + Math.max(0, state.elev) * 40;
+  celestial.sun.position.set(Math.cos(az) * dist, y, Math.sin(az) * dist);
+  celestial.moon.position.set(-Math.cos(az) * dist, y - 28, -Math.sin(az) * dist);
 
   const sunAmt = THREE.MathUtils.clamp(1 - state.night * 1.35, 0, 1);
   const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
@@ -146,49 +232,7 @@ export function applyCelestial(celestial, state) {
   const u = celestial.sky.material.uniforms;
   u.uTop.value.copy(state.sky);
   u.uHorizon.value.copy(state.horizon);
-  updateStars(celestial.stars, state.night);
-}
-
-export function createStars() {
-  const n = 1400;
-  const pos = new Float32Array(n * 3);
-  const col = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) {
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(0.02 + Math.random() * 0.92);
-    const r = 2480;
-    pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    pos[i * 3 + 1] = r * Math.cos(phi);
-    pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-    const w = 0.75 + Math.random() * 0.25;
-    col[i * 3] = w;
-    col[i * 3 + 1] = w * (0.92 + Math.random() * 0.08);
-    col[i * 3 + 2] = w * (0.85 + Math.random() * 0.2);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  const mat = new THREE.PointsMaterial({
-    size: 3.4,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    sizeAttenuation: false,
-    blending: THREE.AdditiveBlending,
-    fog: false,
-    toneMapped: false,
-  });
-  const points = new THREE.Points(geo, mat);
-  points.frustumCulled = false;
-  points.renderOrder = -14;
-  return points;
-}
-
-function updateStars(stars, night) {
-  if (!stars) return;
-  stars.material.opacity = THREE.MathUtils.clamp(night * 1.15, 0, 1);
-  stars.visible = night > 0.12;
+  updateStars(celestial.stars, celestial.debris, state.night);
 }
 
 function makeRocketMesh() {
@@ -356,14 +400,22 @@ export function createSatellites() {
   const group = new THREE.Group();
   const sats = [];
   for (let i = 0; i < 7; i++) {
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(8.5, 2.2, 2.2),
-      new THREE.MeshBasicMaterial({ color: "#f2f6ff" })
-    );
-    const wing = new THREE.Mesh(
-      new THREE.BoxGeometry(0.25, 6.5, 14),
-      new THREE.MeshBasicMaterial({ color: "#8ec0e8" })
-    );
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: "#2a2c32",
+      metalness: 0.9,
+      roughness: 0.28,
+      emissive: "#fff2c8",
+      emissiveIntensity: 0,
+    });
+    const wingMat = new THREE.MeshStandardMaterial({
+      color: "#14181f",
+      metalness: 0.82,
+      roughness: 0.18,
+      emissive: "#ffe9a8",
+      emissiveIntensity: 0,
+    });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(8.5, 2.2, 2.2), bodyMat);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(0.25, 6.5, 14), wingMat);
     const g = new THREE.Group();
     g.add(body, wing);
     const trailGeo = new THREE.BufferGeometry();
@@ -371,12 +423,14 @@ export function createSatellites() {
     trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPos, 3));
     const trail = new THREE.Line(
       trailGeo,
-      new THREE.LineBasicMaterial({ color: "#c8e4ff", transparent: true, opacity: 0.7 })
+      new THREE.LineBasicMaterial({ color: "#3a424c", transparent: true, opacity: 0.28 })
     );
     g.add(trail);
     group.add(g);
     sats.push({
       mesh: g,
+      body,
+      wing,
       trail,
       trailPos,
       yaw: Math.random() * Math.PI * 2,
@@ -384,37 +438,48 @@ export function createSatellites() {
       speed: 0.045 + Math.random() * 0.035,
       radius: 240 + Math.random() * 220,
       t: Math.random() * Math.PI * 2,
+      phase: Math.random() * Math.PI * 2,
     });
   }
   return { group, sats };
 }
 
-function updateSatellites(satsys, dt, night) {
+const _satQ = new THREE.Quaternion();
+const _satAxis = new THREE.Vector3(0, 1, 0);
+const _satP = new THREE.Vector3();
+const _satN = new THREE.Vector3();
+const _satSun = new THREE.Vector3();
+const _satFwd = new THREE.Vector3();
+
+function updateSatellites(satsys, dt, night, hour = 12) {
   if (!satsys) return;
   const on = night > 0.45;
   satsys.group.visible = on;
   if (!on) return;
+  const az = (hour / 24) * Math.PI * 2 - Math.PI / 2;
+  _satSun.set(Math.cos(az), 0.12, Math.sin(az)).normalize();
   for (const s of satsys.sats) {
     s.t += dt * s.speed;
     const x = Math.cos(s.t) * s.radius;
     const y = 180 + Math.sin(s.t * 0.7 + s.pitch) * 90 + s.radius * 0.12;
     const z = Math.sin(s.t) * s.radius * 0.85;
-    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), s.yaw);
-    const p = new THREE.Vector3(x, y, z).applyQuaternion(q);
-    s.mesh.position.copy(p);
-    const next = new THREE.Vector3(
-      Math.cos(s.t + 0.08) * s.radius,
-      y,
-      Math.sin(s.t + 0.08) * s.radius * 0.85
-    ).applyQuaternion(q);
-    s.mesh.lookAt(next);
+    _satQ.setFromAxisAngle(_satAxis, s.yaw);
+    _satP.set(x, y, z).applyQuaternion(_satQ);
+    s.mesh.position.copy(_satP);
+    _satN.set(Math.cos(s.t + 0.08) * s.radius, y, Math.sin(s.t + 0.08) * s.radius * 0.85).applyQuaternion(_satQ);
+    s.mesh.lookAt(_satN);
+    _satFwd.subVectors(_satN, _satP).normalize();
+    const flash = Math.pow(Math.max(0, _satFwd.dot(_satSun)), 28);
+    const panel = Math.pow(Math.max(0, Math.abs(_satFwd.dot(_satSun)) * Math.sin(s.t * 3.1 + s.phase)), 10);
+    if (s.body.material) s.body.material.emissiveIntensity = 0.015 + flash * 2.1;
+    if (s.wing.material) s.wing.material.emissiveIntensity = 0.01 + panel * 2.6;
     const tp = s.trailPos;
     for (let k = 15; k >= 3; k--) {
       tp[k] = tp[k - 3];
     }
-    tp[0] = p.x;
-    tp[1] = p.y;
-    tp[2] = p.z;
+    tp[0] = _satP.x;
+    tp[1] = _satP.y;
+    tp[2] = _satP.z;
     s.trail.geometry.attributes.position.needsUpdate = true;
   }
 }

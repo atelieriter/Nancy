@@ -87,6 +87,7 @@ controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
 
 const celestial = createCelestial();
 scene.add(celestial.group);
+scene.add(celestial.world);
 
 const nightUniform = makeNightUniform();
 const lighting = createLighting(scene);
@@ -214,6 +215,7 @@ async function start() {
   setProgress(0.12, `${data.counts?.buildings ?? "—"} bâtiments · extrusion…`);
   city = await buildCity(scene, data, nightUniform, (t) => setProgress(t, "Pierre de Jaumont, toits d’ardoise…"));
   city.stars = celestial.stars;
+  city.debris = celestial.debris;
   lighting.spots = city.lampLights || [];
   lighting.lanternMat = city.lampMats?.lantern;
   lighting.poolMat = city.lampMats?.pool;
