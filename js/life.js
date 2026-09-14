@@ -78,7 +78,7 @@ export function createSkyDome() {
         vec2 f = fract(p) - 0.5;
         float rnd = hash(id);
         float disc = smoothstep(radius, 0.0, length(f));
-        float bright = 0.18 + pow(rnd, 6.0) * 1.55;
+        float bright = 0.45 + pow(rnd, 3.2) * 2.2;
         return step(thresh, rnd) * disc * bright;
       }
 
@@ -106,14 +106,14 @@ export function createSkyDome() {
           cluster(dir, vec3(0.85, 0.12, -0.35), 42.0, 0.7);
 
         vec2 uv = vec2(atan(dir.z, dir.x) * 0.15915 + 0.5, acos(clamp(dir.y, -1.0, 1.0)) * 0.31831);
-        float field = 0.28 + cl;
+        float field = 0.38 + cl;
         float stars = 0.0;
-        stars += starLayer(uv, 860.0, 1.0 - field * 0.22, 0.04);
-        stars += starLayer(uv + 0.13, 1240.0, 0.978, 0.03) * (0.55 + cl * 0.5);
-        stars += starLayer(uv + 0.29, 1680.0, 0.985, 0.024) * (0.4 + cl);
-        stars += starLayer(uv + 0.47, 520.0, 0.991, 0.044) * (0.35 + cl * 0.7);
-        stars += starLayer(uv + 0.61, 2100.0, 0.988, 0.02) * 0.45;
-        col += vec3(0.96, 0.94, 0.9) * stars * n;
+        stars += starLayer(uv, 520.0, 1.0 - field * 0.28, 0.09);
+        stars += starLayer(uv + 0.13, 780.0, 0.955, 0.07) * (0.7 + cl * 0.5);
+        stars += starLayer(uv + 0.29, 1100.0, 0.968, 0.055) * (0.55 + cl);
+        stars += starLayer(uv + 0.47, 340.0, 0.978, 0.11) * (0.5 + cl * 0.7);
+        stars += starLayer(uv + 0.61, 1450.0, 0.972, 0.05) * 0.65;
+        col += vec3(1.0, 0.97, 0.92) * stars * n * 1.65;
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -280,8 +280,8 @@ export function createCelestial() {
 
   const world = new THREE.Group();
   world.name = "horizon";
-  const sun = makeSkyOrb(128);
-  const moon = makeSkyOrb(102);
+  const sun = makeSkyOrb(240);
+  const moon = makeSkyOrb(190);
   world.add(sun, moon);
 
   return { group, world, sky, stars: null, sun, moon, debris };
@@ -289,7 +289,7 @@ export function createCelestial() {
 
 export function applyCelestial(celestial, state) {
   if (!celestial) return;
-  const dist = 2300;
+  const dist = 1680;
   const az = state.az;
   const y = 58 + Math.max(0, state.elev) * 36;
   celestial.sun.position.set(Math.cos(az) * dist, y, Math.sin(az) * dist);
