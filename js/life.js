@@ -96,7 +96,7 @@ export function createSkyDome() {
         vec3 dir = normalize(vPos);
         // Dégradé écran : pâle en bas (sous la carte), bleu en haut.
         // En vue ~45°, tout le dégradé est visible autour de la maquette.
-        float k = smoothstep(-1.02, 1.02, vClipY);
+        float k = smoothstep(-1.02, 1.02, vClipY + 0.12);
         vec3 col = mix(uHorizon, uTop, k);
 
         float n = uNight;

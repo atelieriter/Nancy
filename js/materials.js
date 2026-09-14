@@ -88,6 +88,9 @@ export function makeNightUniform() {
   return { value: 0 };
 }
 
+/** 0 = fenêtres normales, 1 = presque tout éteint (1h–5h). */
+export const quietUniform = { value: 0 };
+
 /** 0 = sec, 1 = neige. Partagé toits + rues. */
 export const snowUniform = { value: 0 };
 /** Teinte soleil / lune sur la neige. */
@@ -149,6 +152,7 @@ export function facadeMaterial(color, nightUniform, opts = {}) {
   mat.userData.night = nightUniform;
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uNight = nightUniform;
+    shader.uniforms.uQuiet = quietUniform;
     shader.uniforms.uWarm = { value: opts.warm ?? 1 };
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -169,6 +173,7 @@ export function facadeMaterial(color, nightUniform, opts = {}) {
         "#include <common>",
         `#include <common>
         uniform float uNight;
+        uniform float uQuiet;
         uniform float uWarm;
         varying vec3 vWPos;
         varying vec3 vWNrm;
@@ -190,8 +195,9 @@ export function facadeMaterial(color, nightUniform, opts = {}) {
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.78, stoneLine);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.30, 0.26, 0.22), win * 0.52 * (1.0 - uNight * 0.28));
         float id = hash(floor(vec2(wx * 0.34, wy * 0.38)));
-        float lit = win * uNight * step(0.36, id);
-        vec3 glow = vec3(1.05, 0.82, 0.46) * lit * 2.15 * uWarm;
+        float thresh = mix(0.36, 0.955, uQuiet);
+        float lit = win * uNight * step(thresh, id);
+        vec3 glow = vec3(1.05, 0.82, 0.46) * lit * 2.15 * uWarm * mix(1.0, 0.72, uQuiet);
         float hot = step(0.86, id);
         glow += vec3(1.2, 0.94, 0.58) * lit * hot * 2.6;
         diffuseColor.rgb += glow;

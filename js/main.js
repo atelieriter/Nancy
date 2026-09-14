@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "../vendor/OrbitControls.js";
-import { makeNightUniform, snowUniform, snowTintUniform } from "./materials.js";
+import { makeNightUniform, snowUniform, snowTintUniform, quietUniform } from "./materials.js";
 import { buildCity, LANDMARKS } from "./city.js";
 import { createLighting, sampleDay, applyDay } from "./lighting.js";
 import { createPrecip, updatePrecip } from "./weather.js";
@@ -128,11 +128,17 @@ function applyHour() {
   const state = sampleDay(hour);
   snowUniform.value = weather === "snow" ? 1 : 0;
   snowTintUniform.value.copy(state.sunColor);
+  const h = state.hour;
+  let quiet = 0;
+  if (h >= 1 && h < 5) quiet = 1;
+  else if (h >= 0.35 && h < 1) quiet = (h - 0.35) / 0.65;
+  else if (h >= 5 && h < 5.75) quiet = 1 - (h - 5) / 0.75;
+  quietUniform.value = quiet;
   applyDay(state, lighting, scene, nightUniform, weather);
   applyCelestial(celestial, state, camera);
   if (clockEl) clockEl.textContent = fmtHour(hour);
   if (periodEl) periodEl.textContent = periodOf(hour);
-  document.body.classList.toggle("is-night", state.night > 0.48);
+  document.body.classList.toggle("is-night", state.night > 0.18 || h >= 17.15 || h < 6.6);
 }
 
 if (hourEl) {
