@@ -88,8 +88,8 @@ export function makeNightUniform() {
   return { value: 0 };
 }
 
-/** 0 = fenêtres normales, 1 = presque tout éteint (1h–5h). */
-export const quietUniform = { value: 0 };
+/** Heure 0–24, pour éteindre les baies à des heures de coucher différentes. */
+export const hourUniform = { value: 14.5 };
 
 /** 0 = sec, 1 = neige. Partagé toits + rues. */
 export const snowUniform = { value: 0 };
@@ -152,7 +152,7 @@ export function facadeMaterial(color, nightUniform, opts = {}) {
   mat.userData.night = nightUniform;
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uNight = nightUniform;
-    shader.uniforms.uQuiet = quietUniform;
+    shader.uniforms.uHour = hourUniform;
     shader.uniforms.uWarm = { value: opts.warm ?? 1 };
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -173,7 +173,7 @@ export function facadeMaterial(color, nightUniform, opts = {}) {
         "#include <common>",
         `#include <common>
         uniform float uNight;
-        uniform float uQuiet;
+        uniform float uHour;
         uniform float uWarm;
         varying vec3 vWPos;
         varying vec3 vWNrm;
@@ -195,9 +195,15 @@ export function facadeMaterial(color, nightUniform, opts = {}) {
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.78, stoneLine);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.30, 0.26, 0.22), win * 0.52 * (1.0 - uNight * 0.28));
         float id = hash(floor(vec2(wx * 0.34, wy * 0.38)));
-        float thresh = mix(0.36, 0.955, uQuiet);
-        float lit = win * uNight * step(thresh, id);
-        vec3 glow = vec3(1.05, 0.82, 0.46) * lit * 2.15 * uWarm * mix(1.0, 0.72, uQuiet);
+        float id2 = hash(floor(vec2(wx * 0.51 + 3.1, wy * 0.29 - 1.7)));
+        float occup = step(0.32, id);
+        float bed = 21.0 + pow(id, 0.68) * 7.6;
+        float fade = 0.28 + id2 * 0.95;
+        float t = uHour < 10.0 ? uHour + 24.0 : uHour;
+        float stillUp = 1.0 - smoothstep(bed - fade, bed + 0.2, t);
+        float owl = step(0.97, id) * (1.0 - smoothstep(27.2, 29.0, t));
+        float lit = win * uNight * occup * max(stillUp, owl);
+        vec3 glow = vec3(1.05, 0.82, 0.46) * lit * 2.15 * uWarm;
         float hot = step(0.86, id);
         glow += vec3(1.2, 0.94, 0.58) * lit * hot * 2.6;
         diffuseColor.rgb += glow;
