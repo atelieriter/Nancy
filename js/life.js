@@ -126,19 +126,17 @@ export function createSkyDome() {
   return mesh;
 }
 
-function makeDisc(radius, opacity, renderOrder) {
+function makeOrbMesh(radius, opacity, renderOrder) {
   const mat = new THREE.MeshBasicMaterial({
     color: "#ffffff",
     transparent: true,
     opacity,
     depthTest: true,
-    depthWrite: false,
+    depthWrite: true,
     fog: false,
     toneMapped: false,
-    side: THREE.DoubleSide,
   });
-  const mesh = new THREE.Mesh(new THREE.CircleGeometry(radius, 64), mat);
-  mesh.rotation.x = -Math.PI / 2;
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 32), mat);
   mesh.renderOrder = renderOrder;
   mesh.frustumCulled = false;
   return mesh;
@@ -146,11 +144,12 @@ function makeDisc(radius, opacity, renderOrder) {
 
 function makeSkyOrb(radius) {
   const g = new THREE.Group();
-  const halo = makeDisc(radius * 1.07, 0.14, -13);
-  const core = makeDisc(radius, 1, -12);
+  const halo = makeOrbMesh(radius * 1.06, 0.14, -13);
+  const core = makeOrbMesh(radius, 1, -12);
   g.add(halo, core);
   g.userData.core = core;
   g.userData.halo = halo;
+  g.userData.radius = radius;
   g.renderOrder = -12;
   g.frustumCulled = false;
   return g;
@@ -263,11 +262,10 @@ export function applyCelestial(celestial, state) {
   const plate = plateauRect();
   const az = state.az;
   const dist = Math.hypot(plate.w, plate.d) * 0.5 + 820;
-  const y = 6;
   const dx = Math.cos(az) * dist;
   const dz = Math.sin(az) * dist;
-  celestial.sun.position.set(plate.cx + dx, y, plate.cz + dz);
-  celestial.moon.position.set(plate.cx - dx, y, plate.cz - dz);
+  celestial.sun.position.set(plate.cx + dx, celestial.sun.userData.radius, plate.cz + dz);
+  celestial.moon.position.set(plate.cx - dx, celestial.moon.userData.radius, plate.cz - dz);
 
   const sunAmt = THREE.MathUtils.clamp(1 - state.night * 1.35, 0, 1);
   const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
