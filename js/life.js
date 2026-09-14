@@ -45,7 +45,7 @@ export function updateLife(city, dt, night, hour = 12) {
 }
 
 export function createSkyDome() {
-  const geo = new THREE.SphereGeometry(2800, 24, 16);
+  const geo = new THREE.SphereGeometry(2800, 32, 24);
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
@@ -53,6 +53,7 @@ export function createSkyDome() {
     uniforms: {
       uTop: { value: new THREE.Color("#9ec9e8") },
       uHorizon: { value: new THREE.Color("#dbeaf4") },
+      uNight: { value: 0 },
     },
     vertexShader: `
       varying vec3 vPos;
@@ -64,12 +65,41 @@ export function createSkyDome() {
     fragmentShader: `
       uniform vec3 uTop;
       uniform vec3 uHorizon;
+      uniform float uNight;
       varying vec3 vPos;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+
       void main() {
         vec3 dir = normalize(vPos);
         float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
         float k = smoothstep(0.4, 0.66, h);
-        gl_FragColor = vec4(mix(uHorizon, uTop, k), 1.0);
+        vec3 col = mix(uHorizon, uTop, k);
+
+        float n = uNight;
+        vec3 gaxis = normalize(vec3(0.22, 0.58, 0.78));
+        float gal = 1.0 - abs(dot(dir, gaxis));
+        float band = pow(smoothstep(0.42, 1.0, gal), 1.8);
+        vec3 milky = vec3(0.72, 0.68, 0.82) * band * n * 0.42;
+        milky += vec3(0.95, 0.9, 0.98) * pow(band, 5.0) * n * 0.38;
+        col += milky;
+
+        float stars = 0.0;
+        vec2 s1 = floor(dir.xy * 260.0 + dir.z * 17.0);
+        float h1 = hash(s1);
+        stars += step(0.984, h1) * pow(h1, 36.0);
+        vec2 s2 = floor(dir.xz * 420.0 + dir.y * 23.0);
+        float h2 = hash(s2 + 19.2);
+        stars += step(0.991, h2) * pow(h2, 70.0) * 1.4;
+        vec2 s3 = floor(dir.yz * 140.0 + dir.x * 9.0);
+        float h3 = hash(s3 + 71.4);
+        stars += step(0.996, h3) * pow(h3, 20.0) * 0.55;
+        stars *= 0.35 + band * 2.2;
+        col += vec3(1.0, 0.97, 0.92) * stars * n;
+
+        gl_FragColor = vec4(col, 1.0);
       }
     `,
   });
@@ -79,27 +109,63 @@ export function createSkyDome() {
   return mesh;
 }
 
-function makeSkyOrb(radius, glowScale) {
+function makeGlowMap() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d");
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.1, "rgba(255,255,255,0.9)");
+  g.addColorStop(0.22, "rgba(255,255,255,0.45)");
+  g.addColorStop(0.48, "rgba(255,255,255,0.12)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+let GLOW_MAP;
+
+function glowSprite(scale, opacity) {
+  if (!GLOW_MAP) GLOW_MAP = makeGlowMap();
+  const mat = new THREE.SpriteMaterial({
+    map: GLOW_MAP,
+    color: "#ffffff",
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    opacity,
+    depthTest: true,
+    depthWrite: false,
+    fog: false,
+    toneMapped: false,
+  });
+  const s = new THREE.Sprite(mat);
+  s.scale.set(scale, scale, 1);
+  s.renderOrder = -13;
+  s.frustumCulled = false;
+  return s;
+}
+
+function makeSkyOrb(radius) {
   const g = new THREE.Group();
   const core = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 20, 16),
-    new THREE.MeshBasicMaterial({ color: "#ffffff", fog: false, toneMapped: false, depthTest: true, depthWrite: false })
-  );
-  const halo = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * glowScale, 16, 12),
+    new THREE.SphereGeometry(radius, 24, 18),
     new THREE.MeshBasicMaterial({
       color: "#ffffff",
-      transparent: true,
-      opacity: 0.28,
       fog: false,
       toneMapped: false,
       depthTest: true,
       depthWrite: false,
     })
   );
-  g.add(halo, core);
+  const inner = glowSprite(radius * 6.2, 0.95);
+  const outer = glowSprite(radius * 13.5, 0.7);
+  g.add(outer, inner, core);
   g.userData.core = core;
-  g.userData.halo = halo;
+  g.userData.halo = inner;
+  g.userData.haloOuter = outer;
   g.renderOrder = -12;
   g.frustumCulled = false;
   return g;
@@ -195,17 +261,16 @@ export function createCelestial() {
   group.name = "celestial";
   group.frustumCulled = false;
   const sky = createSkyDome();
-  const stars = createStars();
   const debris = createDebris();
-  group.add(sky, stars, debris);
+  group.add(sky, debris);
 
   const world = new THREE.Group();
   world.name = "horizon";
-  const sun = makeSkyOrb(78, 2.5);
-  const moon = makeSkyOrb(56, 2.2);
+  const sun = makeSkyOrb(82);
+  const moon = makeSkyOrb(64);
   world.add(sun, moon);
 
-  return { group, world, sky, stars, sun, moon, debris };
+  return { group, world, sky, stars: null, sun, moon, debris };
 }
 
 export function applyCelestial(celestial, state) {
@@ -226,15 +291,28 @@ export function applyCelestial(celestial, state) {
   if (h >= 5 && h < 8.2) sunCol = "#f4b4c8";
   else if (h >= 16.2 && h < 20.5) sunCol = "#ff4e2c";
   celestial.sun.userData.core.material.color.set(sunCol);
-  celestial.sun.userData.halo.material.color.set(sunCol);
-  celestial.sun.userData.halo.material.opacity = 0.18 + sunAmt * 0.28;
-  celestial.moon.userData.core.material.color.set("#f7f0e2");
-  celestial.moon.userData.halo.material.color.set("#fff6e8");
-  celestial.moon.userData.halo.material.opacity = 0.22 + moonAmt * 0.28;
+  if (celestial.sun.userData.halo) {
+    celestial.sun.userData.halo.material.color.set(sunCol);
+    celestial.sun.userData.halo.material.opacity = 0.55 + sunAmt * 0.45;
+  }
+  if (celestial.sun.userData.haloOuter) {
+    celestial.sun.userData.haloOuter.material.color.set(sunCol);
+    celestial.sun.userData.haloOuter.material.opacity = 0.28 + sunAmt * 0.4;
+  }
+  celestial.moon.userData.core.material.color.set("#fffaf2");
+  if (celestial.moon.userData.halo) {
+    celestial.moon.userData.halo.material.color.set("#fff6e4");
+    celestial.moon.userData.halo.material.opacity = 0.7 + moonAmt * 0.3;
+  }
+  if (celestial.moon.userData.haloOuter) {
+    celestial.moon.userData.haloOuter.material.color.set("#f3e6cc");
+    celestial.moon.userData.haloOuter.material.opacity = 0.4 + moonAmt * 0.45;
+  }
 
   const u = celestial.sky.material.uniforms;
   u.uTop.value.copy(state.sky);
   u.uHorizon.value.copy(state.horizon);
+  u.uNight.value = state.night;
   updateStars(celestial.stars, celestial.debris, state.night);
 }
 

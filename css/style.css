@@ -65,12 +65,13 @@ html, body {
 .mark {
   width: 58px;
   height: 58px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: polygon(50% 0%, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%);
   background: var(--ink);
   color: #fff;
   display: grid;
   place-items: center;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.04em;
 }
