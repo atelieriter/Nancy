@@ -127,7 +127,7 @@ function periodOf(h) {
 function applyHour() {
   const state = sampleDay(hour);
   applyDay(state, lighting, scene, nightUniform, weather);
-  applyCelestial(celestial, state, camera, lighting);
+  applyCelestial(celestial, state, camera);
   if (clockEl) clockEl.textContent = fmtHour(hour);
   if (periodEl) periodEl.textContent = periodOf(hour);
   document.body.classList.toggle("is-night", state.night > 0.48);
@@ -204,7 +204,7 @@ function animate() {
   }
   controls.update();
   celestial.group.position.copy(camera.position);
-  applyCelestial(celestial, sampleDay(hour), camera, lighting);
+  applyCelestial(celestial, sampleDay(hour), camera);
   renderer.render(scene, camera);
 }
 

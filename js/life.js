@@ -251,19 +251,14 @@ export function createCelestial() {
   return { group, world, sky, stars: null, sun, moon: null, debris };
 }
 
-export function applyCelestial(celestial, state, camera, lighting) {
+export function applyCelestial(celestial, state, camera) {
   if (!celestial) return;
   const plate = plateauRect();
   const cx = plate.cx;
   const cz = plate.cz;
-  const camAz = camera
-    ? Math.atan2(camera.position.z - cz, camera.position.x - cx)
-    : state.az;
-  const farAz = camAz + Math.PI;
-  const swing = (state.hour / 24 - 0.5) * Math.PI * 0.82;
-  const az = farAz + swing;
+  const az = state.az;
   const radius = celestial.sun.userData.radius;
-  const dist = Math.hypot(plate.w, plate.d) * 0.5 + radius + 180;
+  const dist = Math.hypot(plate.w, plate.d) * 0.5 + radius + 420;
   celestial.sun.position.set(cx + Math.cos(az) * dist, radius, cz + Math.sin(az) * dist);
   celestial.sun.visible = true;
 
@@ -275,25 +270,25 @@ export function applyCelestial(celestial, state, camera, lighting) {
   const moonCol = new THREE.Color("#fffaf2");
   sunCol.lerp(moonCol, THREE.MathUtils.smoothstep(night, 0.15, 0.72));
 
+  let hide = 0;
+  if (camera) {
+    const toCamX = camera.position.x - cx;
+    const toCamZ = camera.position.z - cz;
+    const toSunX = celestial.sun.position.x - cx;
+    const toSunZ = celestial.sun.position.z - cz;
+    const camLen = Math.hypot(toCamX, toCamZ) || 1;
+    const sunLen = Math.hypot(toSunX, toSunZ) || 1;
+    const facing = (toCamX * toSunX + toCamZ * toSunZ) / (camLen * sunLen);
+    hide = THREE.MathUtils.smoothstep(facing, 0.06, 0.4);
+  }
+
   const mat = celestial.sun.userData.core.material;
   mat.color.copy(sunCol);
   mat.emissive.copy(sunCol);
   mat.emissiveIntensity = 0.55 + (1 - night) * 0.85;
-  mat.opacity = 1;
-  mat.transparent = false;
-
-  if (lighting?.sun) {
-    lighting.sun.position.copy(celestial.sun.position);
-    lighting.sun.target.position.set(cx, 2, cz);
-    lighting.sun.target.updateMatrixWorld();
-  }
-  if (lighting?.moonLight) {
-    lighting.moonLight.position.copy(celestial.sun.position);
-    lighting.moonLight.target.position.set(cx, 2, cz);
-    lighting.moonLight.target.updateMatrixWorld();
-    lighting.moonLight.color.copy(sunCol);
-    lighting.moonLight.intensity = night * 1.35;
-  }
+  mat.transparent = hide > 0.001;
+  mat.opacity = 1 - hide;
+  mat.depthWrite = hide < 0.12;
 
   const u = celestial.sky.material.uniforms;
   u.uTop.value.copy(state.sky);

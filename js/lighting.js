@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { plateauRect } from "./geo.js";
 
 export function createLighting(scene) {
   const hemi = new THREE.HemisphereLight("#cfe4f5", "#8a7358", 0.7);
@@ -8,12 +9,12 @@ export function createLighting(scene) {
   sun.position.set(180, 280, 80);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.near = 10;
-  sun.shadow.camera.far = 900;
-  sun.shadow.camera.left = -420;
-  sun.shadow.camera.right = 420;
-  sun.shadow.camera.top = 420;
-  sun.shadow.camera.bottom = -420;
+  sun.shadow.camera.near = 20;
+  sun.shadow.camera.far = 1400;
+  sun.shadow.camera.left = -620;
+  sun.shadow.camera.right = 620;
+  sun.shadow.camera.top = 620;
+  sun.shadow.camera.bottom = -620;
   sun.shadow.bias = -0.00015;
   scene.add(sun);
   scene.add(sun.target);
@@ -126,20 +127,22 @@ export function applyDay(state, lighting, scene, nightUniform, weather = "sun") 
   lighting.hemi.groundColor.copy(state.hemiGround);
   if (lighting.amb) lighting.amb.intensity = 0.22 + (1 - state.night) * 0.28;
 
-  const r = 420;
-  const y = Math.max(18, state.elev * 340);
-  lighting.sun.position.set(Math.cos(state.az) * r, y, Math.sin(state.az) * r);
+  const plate = plateauRect();
+  const r = 400;
+  lighting.sun.position.set(plate.cx + Math.cos(state.az) * r, 260, plate.cz + Math.sin(state.az) * r);
   lighting.sun.color.copy(state.sunColor);
-  lighting.sun.intensity = state.sunInt * (snowOn ? 0.48 : 1);
-  lighting.sun.target.position.set(0, 0, 0);
+  lighting.sun.intensity = Math.max(0.32, state.sunInt) * (snowOn ? 0.48 : 1);
+  lighting.sun.target.position.set(plate.cx, 2, plate.cz);
+  lighting.sun.target.updateMatrixWorld();
+  lighting.sun.shadow.camera.updateProjectionMatrix();
 
   const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
   if (lighting.moonLight) {
-    const my = 58 + Math.max(0, state.elev) * 36 + 8;
-    lighting.moonLight.position.set(-Math.cos(state.az) * 480, Math.max(48, my * 0.55), -Math.sin(state.az) * 480);
-    lighting.moonLight.target.position.set(0, 2, 0);
+    lighting.moonLight.position.copy(lighting.sun.position);
+    lighting.moonLight.target.position.set(plate.cx, 2, plate.cz);
+    lighting.moonLight.target.updateMatrixWorld();
     lighting.moonLight.color.set("#fff6e8");
-    lighting.moonLight.intensity = moonAmt * 1.7;
+    lighting.moonLight.intensity = moonAmt * 1.15;
   }
 
   const lampI = (0.22 + state.night * 6.4 + state.goldBoost * 0.8) * (snowOn ? 0.8 : 1);
