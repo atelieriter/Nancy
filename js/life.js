@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { toXZ } from "./geo.js";
+import { AXIS_YAW, SQUARE } from "./stanislas.js";
 
 export function updateLife(city, dt, night, hour = 12) {
   if (city.wheel?.userData.spin) {
@@ -45,13 +45,20 @@ export function updateLife(city, dt, night, hour = 12) {
 }
 
 export function createSkyDome() {
-  const geo = new THREE.SphereGeometry(2800, 32, 20);
+  const geo = new THREE.SphereGeometry(2800, 48, 28);
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
+    fog: false,
     uniforms: {
       uTop: { value: new THREE.Color("#9ec9e8") },
       uHorizon: { value: new THREE.Color("#dbeaf4") },
+      uSunDir: { value: new THREE.Vector3(0.35, 0.85, 0.4) },
+      uMoonDir: { value: new THREE.Vector3(-0.35, 0.7, -0.4) },
+      uSunColor: { value: new THREE.Color("#fff6e4") },
+      uMoonColor: { value: new THREE.Color("#f3f5fa") },
+      uSunAmt: { value: 1 },
+      uMoonAmt: { value: 0 },
     },
     vertexShader: `
       varying vec3 vPos;
@@ -63,16 +70,37 @@ export function createSkyDome() {
     fragmentShader: `
       uniform vec3 uTop;
       uniform vec3 uHorizon;
+      uniform vec3 uSunDir;
+      uniform vec3 uMoonDir;
+      uniform vec3 uSunColor;
+      uniform vec3 uMoonColor;
+      uniform float uSunAmt;
+      uniform float uMoonAmt;
       varying vec3 vPos;
       void main() {
-        float h = clamp(vPos.y / 2800.0 * 0.5 + 0.5, 0.0, 1.0);
+        vec3 dir = normalize(vPos);
+        float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
         float k = smoothstep(0.4, 0.66, h);
         vec3 col = mix(uHorizon, uTop, k);
+
+        float sunDot = max(dot(dir, normalize(uSunDir)), 0.0);
+        float sunDisc = smoothstep(0.993, 0.9985, sunDot);
+        float sunGlow = pow(sunDot, 18.0);
+        col += uSunColor * (sunDisc * 2.4 + sunGlow * 0.55) * uSunAmt;
+
+        float moonDot = max(dot(dir, normalize(uMoonDir)), 0.0);
+        float moonDisc = smoothstep(0.9945, 0.9988, moonDot);
+        float moonGlow = pow(moonDot, 48.0);
+        col += uMoonColor * (moonDisc * 1.55 + moonGlow * 0.22) * uMoonAmt;
+
         gl_FragColor = vec4(col, 1.0);
       }
     `,
   });
-  return new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = -10;
+  mesh.frustumCulled = false;
+  return mesh;
 }
 
 export function createStars() {
@@ -169,20 +197,18 @@ export function createRockets() {
   );
   trail.frustumCulled = false;
   group.add(trail);
-  const pads = [
-    new THREE.Vector3(-14, 0, 10),
-    new THREE.Vector3(16, 0, -8),
-    new THREE.Vector3(8, 0, 18),
-    new THREE.Vector3(-22, 0, -6),
-  ];
-  for (const [lon, lat, y] of [
-    [6.18335, 48.69238, 110],
-    [6.17315, 48.68925, 120],
-    [6.1947, 48.69325, 104],
-    [6.18235, 48.69555, 1],
+  const hw = SQUARE.width / 2 - 14;
+  const hd = SQUARE.depth / 2 - 14;
+  const c = Math.cos(AXIS_YAW);
+  const s = Math.sin(AXIS_YAW);
+  const pads = [];
+  for (const [lx, lz] of [
+    [-hw, -hd],
+    [hw, -hd],
+    [-hw, hd],
+    [hw, hd],
   ]) {
-    const p = toXZ(lon, lat);
-    pads.push(new THREE.Vector3(p.x, y, p.z));
+    pads.push(new THREE.Vector3(lx * c + lz * s, 0.22, -lx * s + lz * c));
   }
   const waiting = [];
   for (const p of pads) {

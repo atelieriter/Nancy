@@ -32,7 +32,7 @@ function stone(nightUniform, hex, rough = 0.62) {
   return facadeMaterial(new THREE.Color(hex), nightUniform, { roughness: rough, warm: 1.05 });
 }
 
-export function makeLampPost(nightUniform) {
+export function makeLampPost(nightUniform, opts = {}) {
   const g = new THREE.Group();
   const iron = new THREE.MeshStandardMaterial({
     color: "#2a241c",
@@ -52,10 +52,10 @@ export function makeLampPost(nightUniform) {
     new THREE.BoxGeometry(0.42, 0.7, 0.42),
     new THREE.MeshStandardMaterial({
       color: "#f3e2b0",
-      emissive: "#f0d9a0",
-      emissiveIntensity: 0.2,
+      emissive: "#ffe7b0",
+      emissiveIntensity: 0.25,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.94,
     })
   );
   lantern.position.y = 5.85;
@@ -63,12 +63,26 @@ export function makeLampPost(nightUniform) {
   const hat = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.28, 4), gold);
   hat.position.y = 6.32;
   hat.rotation.y = Math.PI / 4;
-  g.add(pole, base, arm, lantern, hat);
+  const pool = new THREE.Mesh(
+    new THREE.CircleGeometry(7.6, 22),
+    new THREE.MeshBasicMaterial({
+      color: "#ffe08a",
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    })
+  );
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.y = 0.2;
+  pool.userData.illuminate = "lamp-ground";
+  g.add(pole, base, arm, lantern, hat, pool);
 
-  const light = new THREE.PointLight("#f3ddb0", 0, 16, 2);
-  light.position.y = 5.7;
-  g.add(light);
-  g.userData.light = light;
+  if (opts.withLight !== false) {
+    const light = new THREE.PointLight("#ffe7b4", 0, 26, 1.55);
+    light.position.y = 5.7;
+    g.add(light);
+    g.userData.light = light;
+  }
   g.userData.globe = lantern;
   return g;
 }
@@ -445,5 +459,53 @@ export function scatterLamps(parent, lights, nightUniform, spots) {
   for (const [lon, lat] of spots) {
     const p = toXZ(lon, lat);
     placeLamp(parent, lights, nightUniform, p.x, p.z);
+  }
+}
+
+/** Lampadaires le long des rues, un tous les ~10 m. Peu de PointLights (budget GPU). */
+export function lampsAlongRoads(parent, lights, nightUniform, roads, opts = {}) {
+  const spacing = opts.spacing ?? 10;
+  const maxMesh = opts.maxMesh ?? 360;
+  const maxLights = opts.maxLights ?? 32;
+  let meshes = 0;
+  let lit = 0;
+  for (const r of roads || []) {
+    if (!["primary", "secondary", "tertiary", "residential", "pedestrian"].includes(r.highway)) continue;
+    const coords = r.coords || [];
+    if (coords.length < 2) continue;
+    let acc = spacing * 0.5;
+    let prev = toXZ(coords[0][0], coords[0][1]);
+    if (Math.hypot(prev.x, prev.z) > 720) continue;
+    for (let i = 1; i < coords.length; i++) {
+      const cur = toXZ(coords[i][0], coords[i][1]);
+      let dx = cur.x - prev.x;
+      let dz = cur.z - prev.z;
+      let seg = Math.hypot(dx, dz);
+      if (seg < 0.4) {
+        prev = cur;
+        continue;
+      }
+      let t = 0;
+      while (acc + (seg - t) >= spacing && meshes < maxMesh) {
+        const need = spacing - acc;
+        t += need;
+        const k = t / seg;
+        const x = prev.x + dx * k;
+        const z = prev.z + dz * k;
+        const withLight = lit < maxLights && meshes % 7 === 0;
+        const lamp = makeLampPost(nightUniform, { withLight });
+        lamp.position.set(x, 0, z);
+        parent.add(lamp);
+        if (withLight && lamp.userData.light) {
+          lights.push(lamp.userData.light);
+          lit += 1;
+        }
+        meshes += 1;
+        acc = 0;
+      }
+      acc += seg - t;
+      prev = cur;
+      if (meshes >= maxMesh) return;
+    }
   }
 }

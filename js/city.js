@@ -31,6 +31,7 @@ import {
   makeStanislasEnsemble,
   makePalaisGouverneur,
   scatterLamps,
+  lampsAlongRoads,
   AXIS_YAW,
   SQUARE,
 } from "./stanislas.js";
@@ -198,50 +199,6 @@ function mergeBucket(list) {
     console.warn("mergeBucket", err);
     return ok[0];
   }
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w * 0.5, h * 0.5);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + w, y, x + w, y + h, rr);
-  ctx.arcTo(x + w, y + h, x, y + h, rr);
-  ctx.arcTo(x, y + h, x, y, rr);
-  ctx.arcTo(x, y, x + w, y, rr);
-  ctx.closePath();
-}
-
-function labelSprite(text) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 640;
-  canvas.height = 96;
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, 640, 96);
-  ctx.font = "500 26px Inter, Outfit, sans-serif";
-  const padX = 28;
-  const w = Math.min(600, Math.ceil(ctx.measureText(text).width + padX * 2));
-  const h = 44;
-  const x = (640 - w) * 0.5;
-  const y = (96 - h) * 0.5;
-  ctx.shadowColor = "rgba(24, 20, 16, 0.16)";
-  ctx.shadowBlur = 14;
-  ctx.shadowOffsetY = 3;
-  ctx.fillStyle = "#ffffff";
-  roundRect(ctx, x, y, w, h, 22);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  ctx.fillStyle = "#1c1a17";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, 320, 49);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
-  const spr = new THREE.Sprite(mat);
-  spr.scale.set(40, 6, 1);
-  spr.renderOrder = 20;
-  return spr;
 }
 
 function addCoveragePlateau(root) {
@@ -843,6 +800,7 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   root.add(ensemble.group);
   lampLights.push(...ensemble.lights);
   root.add(makePalaisGouverneur(nightUniform));
+  lampsAlongRoads(root, lampLights, nightUniform, data.roads || []);
   scatterLamps(root, lampLights, nightUniform, [
     [6.18176, 48.6952],
     [6.18176, 48.6957],
@@ -886,14 +844,6 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   const wheel = makeFerrisWheel(nightUniform);
   wheel.position.set(fx, 22, fz);
   root.add(wheel);
-
-  for (const lm of LANDMARKS) {
-    const p = toXZ(lm.lon, lm.lat);
-    const spr = labelSprite(lm.name);
-    spr.position.set(p.x, 28, p.z);
-    spr.userData.label = true;
-    root.add(spr);
-  }
 
   let canalCurve = null;
   if (canalPaths.length) {
@@ -960,18 +910,12 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
 
   const loop = buildUrbanLoop(root);
 
-  const modernPads = [];
   for (const s of MODERN_SITES) {
     const tower = makeModernTower(s.h);
     const p = toXZ(s.lon, s.lat);
     tower.position.set(p.x, 0, p.z);
     tower.rotation.y = (s.lon * 40) % 1.2;
     root.add(tower);
-    modernPads.push({ x: p.x, y: s.h + 1.4, z: p.z });
-  }
-  for (const s of LOOP_HUBS) {
-    const p = toXZ(s.lon, s.lat);
-    modernPads.push({ x: p.x, y: s.h + 1.8, z: p.z });
   }
 
   const flyers = [];
@@ -994,23 +938,46 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
   routes.sort((a, b) => b.coords.length - a.coords.length);
 
-  for (let lane = 0; lane < 5; lane++) {
-    const orbit = [];
-    const ry = 8 + lane * 6.2;
-    const rx = 78 + lane * 22;
-    const rz = 56 + lane * 18;
-    for (let a = 0; a <= 20; a++) {
-      const ang = (a / 20) * Math.PI * 2;
-      const lx = Math.cos(ang) * rx;
-      const lz = Math.sin(ang) * rz;
-      const x = lx * Math.cos(AXIS_YAW) + lz * Math.sin(AXIS_YAW);
-      const z = -lx * Math.sin(AXIS_YAW) + lz * Math.cos(AXIS_YAW);
-      orbit.push(new THREE.Vector3(x, ry, z));
+  const half = 820;
+  const heights = [8, 12, 17, 23, 30, 38, 48, 58];
+  const nsXs = [-560, -400, -240, -80, 80, 240, 400, 560];
+  for (let i = 0; i < nsXs.length; i++) {
+    const x = nsXs[i];
+    const y = heights[i % heights.length];
+    const go = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(x, y, -half),
+      new THREE.Vector3(x, y, 0),
+      new THREE.Vector3(x, y, half),
+    ]);
+    const back = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(x + 10, y + 2.4, half),
+      new THREE.Vector3(x + 10, y + 2.4, 0),
+      new THREE.Vector3(x + 10, y + 2.4, -half),
+    ]);
+    const n = 7;
+    for (let k = 0; k < n; k++) {
+      spawn(go, kinds[(i + k) % kinds.length], 0.016 + (i % 4) * 0.003, 0.04, k / n, i + k);
+      spawn(back, kinds[(i + k + 2) % kinds.length], 0.015 + (k % 3) * 0.003, 0.05, (k + 0.45) / n, i * 2 + k);
     }
-    const orbitCurve = new THREE.CatmullRomCurve3(orbit, true);
-    const n = 8;
-    for (let i = 0; i < n; i++) {
-      spawn(orbitCurve, kinds[(lane + i) % kinds.length], 0.014 + lane * 0.003, 0.04 + i * 0.05, i / n, i + lane);
+  }
+  const ewZs = [-500, -340, -180, -40, 100, 260, 420];
+  for (let i = 0; i < ewZs.length; i++) {
+    const z = ewZs[i];
+    const y = heights[(i + 3) % heights.length];
+    const go = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-half, y, z),
+      new THREE.Vector3(0, y, z),
+      new THREE.Vector3(half, y, z),
+    ]);
+    const back = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(half, y + 2.6, z + 10),
+      new THREE.Vector3(0, y + 2.6, z + 10),
+      new THREE.Vector3(-half, y + 2.6, z + 10),
+    ]);
+    const n = 7;
+    for (let k = 0; k < n; k++) {
+      spawn(go, kinds[(i + k + 1) % kinds.length], 0.015 + (i % 3) * 0.003, 0.04, k / n, i + 20 + k);
+      spawn(back, kinds[(i + k + 3) % kinds.length], 0.014 + (k % 4) * 0.003, 0.05, (k + 0.4) / n, i + 30 + k);
     }
   }
 
@@ -1062,26 +1029,6 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
         i * 0.8 + k
       );
     }
-  }
-
-  for (const pad of modernPads) {
-    const dest = routes[Math.floor(Math.random() * Math.min(8, routes.length))];
-    const end = dest
-      ? toXZ(dest.coords[dest.coords.length - 1][0], dest.coords[dest.coords.length - 1][1])
-      : { x: 0, z: 0 };
-    const loop = [
-      new THREE.Vector3(pad.x, pad.y, pad.z),
-      new THREE.Vector3(pad.x + 2, pad.y + 16, pad.z + 4),
-      new THREE.Vector3((pad.x + end.x) * 0.5, 22, (pad.z + end.z) * 0.5),
-      new THREE.Vector3(end.x, 14, end.z),
-      new THREE.Vector3((pad.x + end.x) * 0.45, 26, (pad.z + end.z) * 0.55),
-      new THREE.Vector3(pad.x - 3, pad.y + 14, pad.z - 2),
-      new THREE.Vector3(pad.x, pad.y, pad.z),
-    ];
-    const curve = new THREE.CatmullRomCurve3(loop, true);
-    spawn(curve, "car", 0.01, 0.12, Math.random(), 2);
-    spawn(curve, "pod", 0.013, 0.16, 0.33, 3);
-    spawn(curve, "scooter", 0.016, 0.18, 0.66, 1.4);
   }
 
   onProgress?.(0.92);

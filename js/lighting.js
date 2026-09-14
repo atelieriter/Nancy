@@ -128,14 +128,17 @@ export function applyDay(state, lighting, scene, nightUniform, weather = "sun") 
   lighting.sun.intensity = state.sunInt * (snowOn ? 0.48 : 1);
   lighting.sun.target.position.set(0, 0, 0);
 
-  const lampI = (0.15 + state.night * 3.8 + state.goldBoost * 0.6) * (snowOn ? 0.8 : 1);
+  const lampI = (0.22 + state.night * 6.4 + state.goldBoost * 0.8) * (snowOn ? 0.8 : 1);
   for (const s of lighting.spots || []) s.intensity = lampI;
 
   scene.traverse((obj) => {
     if (!obj.isMesh || !obj.material) return;
     const mat = obj.material;
     if (obj.userData.illuminate === "lamp" && mat.emissive) {
-      mat.emissiveIntensity = 0.18 + state.night * 0.95;
+      mat.emissiveIntensity = 0.28 + state.night * 1.85;
+    }
+    if (obj.userData.illuminate === "lamp-ground" && mat.opacity !== undefined) {
+      mat.opacity = state.night * 0.78;
     }
   });
 }

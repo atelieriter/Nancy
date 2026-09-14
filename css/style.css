@@ -87,13 +87,20 @@ html, body {
   font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1.05;
+  text-shadow: 0 1px 14px rgba(255, 255, 255, 0.7);
 }
 
 .brand h1 em {
   font-style: normal;
-  font-weight: 400;
-  color: var(--mute);
-  margin-left: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: var(--ink);
+  margin-left: 8px;
+  padding: 3px 9px 4px;
+  border-radius: 999px;
+  vertical-align: 5px;
 }
 
 .brand .kicker span { color: var(--line); }
@@ -120,7 +127,15 @@ body.is-night .coords {
   color: #f4f1ea;
 }
 
-body.is-night .brand h1 em,
+body.is-night .brand h1 {
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.45);
+}
+
+body.is-night .brand h1 em {
+  color: #1c1a17;
+  background: #f4f1ea;
+}
+
 body.is-night .brand .kicker,
 body.is-night .coords span {
   color: rgba(244, 241, 234, 0.62);

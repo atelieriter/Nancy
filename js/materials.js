@@ -144,8 +144,10 @@ export function facadeMaterial(color, nightUniform, opts = {}) {
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.78, stoneLine);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.30, 0.26, 0.22), win * 0.52 * (1.0 - uNight * 0.28));
         float id = hash(floor(vec2(wx * 0.34, wy * 0.38)));
-        float lit = win * uNight * step(0.42, id);
-        vec3 glow = vec3(1.0, 0.78, 0.42) * lit * 1.35 * uWarm;
+        float lit = win * uNight * step(0.36, id);
+        vec3 glow = vec3(1.05, 0.82, 0.46) * lit * 2.15 * uWarm;
+        float hot = step(0.86, id);
+        glow += vec3(1.2, 0.94, 0.58) * lit * hot * 2.6;
         diffuseColor.rgb += glow;
         `
       );
