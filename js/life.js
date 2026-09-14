@@ -58,9 +58,12 @@ export function createSkyDome() {
     },
     vertexShader: `
       varying vec3 vPos;
+      varying float vClipY;
       void main() {
         vPos = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vec4 clip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vClipY = clip.y / max(clip.w, 0.0001);
+        gl_Position = clip;
       }
     `,
     fragmentShader: `
@@ -68,6 +71,7 @@ export function createSkyDome() {
       uniform vec3 uHorizon;
       uniform float uNight;
       varying vec3 vPos;
+      varying float vClipY;
 
       float hash(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -90,8 +94,9 @@ export function createSkyDome() {
 
       void main() {
         vec3 dir = normalize(vPos);
-        float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-        float k = smoothstep(0.4, 0.66, h);
+        // Dégradé écran : pâle en bas (sous la carte), bleu en haut.
+        // En vue ~45°, tout le dégradé est visible autour de la maquette.
+        float k = smoothstep(-1.02, 1.02, vClipY);
         vec3 col = mix(uHorizon, uTop, k);
 
         float n = uNight;

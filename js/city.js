@@ -24,6 +24,7 @@ import {
   slabShape,
   decalMaterial,
   ribbonGeometry,
+  snowCoverMaterial,
 } from "./materials.js";
 import {
   inStanislasCore,
@@ -206,11 +207,13 @@ function addCoveragePlateau(root) {
   const { w, d, cx, cz } = plateauRect();
   const earthH = 96;
   const side = earthSideMaterial();
-  const top = new THREE.MeshStandardMaterial({
-    color: PALETTE.ground,
-    roughness: 0.96,
-    metalness: 0,
-  });
+  const top = snowCoverMaterial(
+    new THREE.MeshStandardMaterial({
+      color: PALETTE.ground,
+      roughness: 0.96,
+      metalness: 0,
+    })
+  );
   const bot = new THREE.MeshStandardMaterial({
     color: PALETTE.earthDeep,
     roughness: 1,
@@ -264,7 +267,7 @@ function addSpire(parent, lon, lat, baseY, height, color) {
   const geo = new THREE.ConeGeometry(2.4, height, 8);
   const mesh = new THREE.Mesh(
     geo,
-    new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.08 })
+    snowCoverMaterial(new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.08 }))
   );
   mesh.position.set(x, baseY + height * 0.5, z);
   mesh.castShadow = true;
@@ -275,11 +278,13 @@ function addSpire(parent, lon, lat, baseY, height, color) {
 function addCathedralTowers(parent, lon, lat, baseY, nightUniform) {
   const { x, z } = toXZ(lon, lat);
   const stone = facadeMaterial(PALETTE.church, nightUniform, { roughness: 0.55 });
-  const capMat =     new THREE.MeshStandardMaterial({
+  const capMat = snowCoverMaterial(
+    new THREE.MeshStandardMaterial({
       color: PALETTE.roofSlate,
       metalness: 0.08,
       roughness: 0.55,
-    });
+    })
+  );
   for (const dx of [-7.5, 7.5]) {
     const tower = new THREE.Mesh(new THREE.BoxGeometry(7.2, 16, 7.2), stone);
     tower.position.set(x + dx, baseY + 8, z);
@@ -676,7 +681,7 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
   const parkMerged = mergeBucket(parkGeos);
   if (parkMerged) {
-    root.add(new THREE.Mesh(parkMerged, decalMaterial(PALETTE.park, { roughness: 0.92, factor: -3 })));
+    root.add(new THREE.Mesh(parkMerged, decalMaterial(PALETTE.park, { roughness: 0.92, factor: -3, snow: true })));
   }
 
   const squareGeos = { stanislas: [], carriere: [], other: [] };
@@ -695,11 +700,11 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
   const carr = mergeBucket(squareGeos.carriere);
   if (carr) {
-    root.add(new THREE.Mesh(carr, decalMaterial(PALETTE.carriere, { roughness: 0.72, factor: -2 })));
+    root.add(new THREE.Mesh(carr, decalMaterial(PALETTE.carriere, { roughness: 0.72, factor: -2, snow: true })));
   }
   const oth = mergeBucket(squareGeos.other);
   if (oth) {
-    root.add(new THREE.Mesh(oth, decalMaterial(PALETTE.pavement, { roughness: 0.75, factor: -2 })));
+    root.add(new THREE.Mesh(oth, decalMaterial(PALETTE.pavement, { roughness: 0.75, factor: -2, snow: true })));
   }
 
   const carnotPts = [];
@@ -718,7 +723,7 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
     ];
     const sh = shapeFromCoords(rect);
     if (sh) {
-      const m = new THREE.Mesh(slabShape(sh, 0.26, 0), decalMaterial(PALETTE.carnot, { roughness: 0.7 }));
+      const m = new THREE.Mesh(slabShape(sh, 0.26, 0), decalMaterial(PALETTE.carnot, { roughness: 0.7, snow: true }));
       root.add(m);
     }
   }
@@ -732,7 +737,7 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
   const roadsM = mergeBucket(roadGeos);
   if (roadsM) {
-    root.add(new THREE.Mesh(roadsM, decalMaterial(PALETTE.road, { roughness: 0.88, factor: -1 })));
+    root.add(new THREE.Mesh(roadsM, decalMaterial(PALETTE.road, { roughness: 0.88, factor: -1, snow: true })));
   }
 
   const waterMat = decalMaterial(PALETTE.water, {

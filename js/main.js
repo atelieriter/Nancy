@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "../vendor/OrbitControls.js";
-import { makeNightUniform } from "./materials.js";
+import { makeNightUniform, snowUniform, snowTintUniform } from "./materials.js";
 import { buildCity, LANDMARKS } from "./city.js";
 import { createLighting, sampleDay, applyDay } from "./lighting.js";
 import { createPrecip, updatePrecip } from "./weather.js";
@@ -126,6 +126,8 @@ function periodOf(h) {
 
 function applyHour() {
   const state = sampleDay(hour);
+  snowUniform.value = weather === "snow" ? 1 : 0;
+  snowTintUniform.value.copy(state.sunColor);
   applyDay(state, lighting, scene, nightUniform, weather);
   applyCelestial(celestial, state, camera);
   if (clockEl) clockEl.textContent = fmtHour(hour);

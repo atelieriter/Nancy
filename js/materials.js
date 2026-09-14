@@ -88,6 +88,52 @@ export function makeNightUniform() {
   return { value: 0 };
 }
 
+/** 0 = sec, 1 = neige. Partagé toits + rues. */
+export const snowUniform = { value: 0 };
+/** Teinte soleil / lune sur la neige. */
+export const snowTintUniform = { value: new THREE.Color("#ffffff") };
+
+function patchSnowCover(shader) {
+  shader.uniforms.uSnow = snowUniform;
+  shader.uniforms.uSnowTint = snowTintUniform;
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      "#include <common>",
+      `#include <common>
+      uniform float uSnow;
+      uniform vec3 uSnowTint;`
+    )
+    .replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      vec3 snowCol = mix(vec3(0.93, 0.96, 1.0), uSnowTint, 0.58);
+      diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, uSnow * 0.97);
+      `
+    )
+    .replace(
+      "#include <roughnessmap_fragment>",
+      `#include <roughnessmap_fragment>
+      roughnessFactor = mix(roughnessFactor, 0.1, uSnow);
+      `
+    )
+    .replace(
+      "#include <metalnessmap_fragment>",
+      `#include <metalnessmap_fragment>
+      metalnessFactor = mix(metalnessFactor, 0.42, uSnow);
+      `
+    );
+}
+
+/** Toits / rues / dallage : blanc neigeux qui reflète soleil et lune. */
+export function snowCoverMaterial(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    patchSnowCover(shader);
+    prev?.(shader, renderer);
+  };
+  return mat;
+}
+
 /**
  * Grille de fenêtres en world-space + lueur nocturne.
  * Détail « cité des ducs » : ritme vertical des baies nancéiennes.
@@ -162,6 +208,7 @@ export function roofMaterial(color = PALETTE.roof) {
     metalness: 0.02,
   });
   mat.onBeforeCompile = (shader) => {
+    patchSnowCover(shader);
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
@@ -178,21 +225,20 @@ export function roofMaterial(color = PALETTE.roof) {
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
-        "#include <common>",
-        `#include <common>
+        "uniform vec3 uSnowTint;",
+        `uniform vec3 uSnowTint;
         varying vec3 vRoofPos;
         varying vec3 vRoofNrm;`
       )
       .replace(
-        "#include <color_fragment>",
-        `#include <color_fragment>
-        float tile = fract(vRoofPos.x * 0.48 + vRoofPos.z * 0.16);
+        "diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, uSnow * 0.97);",
+        `float tile = fract(vRoofPos.x * 0.48 + vRoofPos.z * 0.16);
         float row = fract(vRoofPos.y * 1.25 + vRoofPos.z * 0.52);
         float grout = step(0.86, tile) + step(0.9, row);
-        diffuseColor.rgb *= 1.0 - clamp(grout, 0.0, 1.0) * 0.16;
+        diffuseColor.rgb *= 1.0 - clamp(grout, 0.0, 1.0) * 0.16 * (1.0 - uSnow);
         float slope = mix(0.82, 1.06, clamp(vRoofNrm.y * 1.35, 0.0, 1.0));
-        diffuseColor.rgb *= slope;
-        `
+        diffuseColor.rgb *= mix(slope, 1.0, uSnow);
+        diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, uSnow * 0.97);`
       );
   };
   return mat;
@@ -513,7 +559,7 @@ export function slabShape(shape, height = 0.42, y0 = 0) {
 }
 
 export function decalMaterial(color, opts = {}) {
-  return new THREE.MeshStandardMaterial({
+  const mat = new THREE.MeshStandardMaterial({
     color,
     roughness: opts.roughness ?? 0.88,
     metalness: opts.metalness ?? 0,
@@ -525,6 +571,8 @@ export function decalMaterial(color, opts = {}) {
     depthWrite: true,
     transparent: false,
   });
+  if (opts.snow) snowCoverMaterial(mat);
+  return mat;
 }
 
 export function ribbonGeometry(coords, width) {

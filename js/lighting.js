@@ -2,21 +2,25 @@ import * as THREE from "three";
 import { plateauRect } from "./geo.js";
 
 export function createLighting(scene) {
+  const plate = plateauRect();
+  const span = Math.hypot(plate.w, plate.d) * 0.5 + 280;
   const hemi = new THREE.HemisphereLight("#cfe4f5", "#8a7358", 0.7);
   scene.add(hemi);
 
   const sun = new THREE.DirectionalLight("#fff4d6", 2.2);
-  sun.position.set(180, 280, 80);
+  sun.position.set(plate.cx + span, span * 0.7, plate.cz + span * 0.35);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.near = 20;
-  sun.shadow.camera.far = 1400;
-  sun.shadow.camera.left = -620;
-  sun.shadow.camera.right = 620;
-  sun.shadow.camera.top = 620;
-  sun.shadow.camera.bottom = -620;
-  sun.shadow.bias = -0.00015;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 2;
+  sun.shadow.camera.far = span * 3.2;
+  sun.shadow.camera.left = -span;
+  sun.shadow.camera.right = span;
+  sun.shadow.camera.top = span;
+  sun.shadow.camera.bottom = -span;
+  sun.shadow.bias = -0.00035;
+  sun.shadow.normalBias = 1.1;
   scene.add(sun);
+  sun.target.position.set(plate.cx, 2, plate.cz);
   scene.add(sun.target);
 
   const fill = new THREE.DirectionalLight("#9bb7d4", 0.25);
@@ -128,13 +132,25 @@ export function applyDay(state, lighting, scene, nightUniform, weather = "sun") 
   if (lighting.amb) lighting.amb.intensity = 0.22 + (1 - state.night) * 0.28;
 
   const plate = plateauRect();
-  const r = 400;
-  lighting.sun.position.set(plate.cx + Math.cos(state.az) * r, 260, plate.cz + Math.sin(state.az) * r);
+  const span = Math.hypot(plate.w, plate.d) * 0.5 + 280;
+  const cover = span * 1.28;
+  const y = Math.max(span * 0.48, 120 + Math.max(0, state.elev) * span * 0.7);
+  lighting.sun.position.set(
+    plate.cx + Math.cos(state.az) * span,
+    y,
+    plate.cz + Math.sin(state.az) * span
+  );
   lighting.sun.color.copy(state.sunColor);
-  lighting.sun.intensity = Math.max(0.32, state.sunInt) * (snowOn ? 0.48 : 1);
+  lighting.sun.intensity = Math.max(0.32, state.sunInt) * (snowOn ? 0.78 : 1);
   lighting.sun.target.position.set(plate.cx, 2, plate.cz);
   lighting.sun.target.updateMatrixWorld();
-  lighting.sun.shadow.camera.updateProjectionMatrix();
+  const sh = lighting.sun.shadow.camera;
+  sh.left = -cover;
+  sh.right = cover;
+  sh.top = cover;
+  sh.bottom = -cover;
+  sh.far = span * 2.6 + y;
+  sh.updateProjectionMatrix();
 
   const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
   if (lighting.moonLight) {
