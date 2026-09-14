@@ -95,20 +95,24 @@ export function createSkyDome() {
 
         float n = uNight;
         float cl =
-          cluster(dir, vec3(0.42, 0.62, -0.28), 34.0, 1.0) +
-          cluster(dir, vec3(-0.55, 0.48, 0.52), 40.0, 0.9) +
-          cluster(dir, vec3(0.12, -0.22, 0.92), 48.0, 0.75) +
-          cluster(dir, vec3(-0.72, 0.18, -0.48), 36.0, 0.85) +
-          cluster(dir, vec3(0.68, -0.38, 0.22), 44.0, 0.7) +
-          cluster(dir, vec3(-0.18, 0.78, 0.38), 52.0, 0.65) +
-          cluster(dir, vec3(0.33, -0.55, -0.62), 38.0, 0.8);
+          cluster(dir, vec3(0.42, 0.62, -0.28), 28.0, 1.15) +
+          cluster(dir, vec3(-0.55, 0.48, 0.52), 32.0, 1.05) +
+          cluster(dir, vec3(0.12, -0.22, 0.92), 40.0, 0.9) +
+          cluster(dir, vec3(-0.72, 0.18, -0.48), 30.0, 1.0) +
+          cluster(dir, vec3(0.68, -0.38, 0.22), 36.0, 0.85) +
+          cluster(dir, vec3(-0.18, 0.78, 0.38), 44.0, 0.8) +
+          cluster(dir, vec3(0.33, -0.55, -0.62), 32.0, 0.95) +
+          cluster(dir, vec3(-0.4, -0.7, 0.15), 38.0, 0.75) +
+          cluster(dir, vec3(0.85, 0.12, -0.35), 42.0, 0.7);
 
         vec2 uv = vec2(atan(dir.z, dir.x) * 0.15915 + 0.5, acos(clamp(dir.y, -1.0, 1.0)) * 0.31831);
-        float field = 0.12 + cl;
+        float field = 0.28 + cl;
         float stars = 0.0;
-        stars += starLayer(uv, 980.0, 1.0 - field * 0.14, 0.028);
-        stars += starLayer(uv + 0.17, 1480.0, 0.993, 0.018) * (0.45 + cl);
-        stars += starLayer(uv + 0.41, 640.0, 0.9972, 0.032) * (0.25 + cl * 0.9);
+        stars += starLayer(uv, 860.0, 1.0 - field * 0.22, 0.04);
+        stars += starLayer(uv + 0.13, 1240.0, 0.978, 0.03) * (0.55 + cl * 0.5);
+        stars += starLayer(uv + 0.29, 1680.0, 0.985, 0.024) * (0.4 + cl);
+        stars += starLayer(uv + 0.47, 520.0, 0.991, 0.044) * (0.35 + cl * 0.7);
+        stars += starLayer(uv + 0.61, 2100.0, 0.988, 0.02) * 0.45;
         col += vec3(0.96, 0.94, 0.9) * stars * n;
 
         gl_FragColor = vec4(col, 1.0);
@@ -126,10 +130,10 @@ function makeGlowMap() {
   c.width = c.height = 256;
   const ctx = c.getContext("2d");
   const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  g.addColorStop(0, "rgba(255,255,255,0.95)");
-  g.addColorStop(0.22, "rgba(255,255,255,0.35)");
-  g.addColorStop(0.48, "rgba(255,255,255,0.06)");
-  g.addColorStop(0.72, "rgba(255,255,255,0)");
+  g.addColorStop(0, "rgba(255,255,255,0.55)");
+  g.addColorStop(0.18, "rgba(255,255,255,0.18)");
+  g.addColorStop(0.4, "rgba(255,255,255,0.03)");
+  g.addColorStop(0.58, "rgba(255,255,255,0)");
   g.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 256, 256);
@@ -172,7 +176,7 @@ function makeSkyOrb(radius) {
       depthWrite: false,
     })
   );
-  const inner = glowSprite(radius * 2.15, 0.55);
+  const inner = glowSprite(radius * 1.38, 0.32);
   g.add(inner, core);
   g.userData.core = core;
   g.userData.halo = inner;
@@ -276,8 +280,8 @@ export function createCelestial() {
 
   const world = new THREE.Group();
   world.name = "horizon";
-  const sun = makeSkyOrb(82);
-  const moon = makeSkyOrb(64);
+  const sun = makeSkyOrb(128);
+  const moon = makeSkyOrb(102);
   world.add(sun, moon);
 
   return { group, world, sky, stars: null, sun, moon, debris };
@@ -303,12 +307,12 @@ export function applyCelestial(celestial, state) {
   celestial.sun.userData.core.material.color.set(sunCol);
   if (celestial.sun.userData.halo) {
     celestial.sun.userData.halo.material.color.set(sunCol);
-    celestial.sun.userData.halo.material.opacity = 0.28 + sunAmt * 0.22;
+    celestial.sun.userData.halo.material.opacity = 0.16 + sunAmt * 0.14;
   }
   celestial.moon.userData.core.material.color.set("#fffaf2");
   if (celestial.moon.userData.halo) {
     celestial.moon.userData.halo.material.color.set("#fff6e4");
-    celestial.moon.userData.halo.material.opacity = 0.32 + moonAmt * 0.18;
+    celestial.moon.userData.halo.material.opacity = 0.18 + moonAmt * 0.12;
   }
 
   const u = celestial.sky.material.uniforms;
