@@ -25,7 +25,12 @@ export function createLighting(scene) {
   const amb = new THREE.AmbientLight("#d8c6ab", 0.38);
   scene.add(amb);
 
-  return { hemi, sun, fill, spots: [], amb };
+  const moonLight = new THREE.DirectionalLight("#fff4e4", 0);
+  moonLight.castShadow = false;
+  scene.add(moonLight);
+  scene.add(moonLight.target);
+
+  return { hemi, sun, fill, spots: [], amb, moonLight };
 }
 
 /**
@@ -127,6 +132,15 @@ export function applyDay(state, lighting, scene, nightUniform, weather = "sun") 
   lighting.sun.color.copy(state.sunColor);
   lighting.sun.intensity = state.sunInt * (snowOn ? 0.48 : 1);
   lighting.sun.target.position.set(0, 0, 0);
+
+  const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
+  if (lighting.moonLight) {
+    const my = 58 + Math.max(0, state.elev) * 36 + 8;
+    lighting.moonLight.position.set(-Math.cos(state.az) * 480, Math.max(48, my * 0.55), -Math.sin(state.az) * 480);
+    lighting.moonLight.target.position.set(0, 2, 0);
+    lighting.moonLight.color.set("#fff6e8");
+    lighting.moonLight.intensity = moonAmt * 1.7;
+  }
 
   const lampI = (0.22 + state.night * 6.4 + state.goldBoost * 0.8) * (snowOn ? 0.8 : 1);
   for (const s of lighting.spots || []) s.intensity = lampI;

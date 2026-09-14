@@ -399,8 +399,8 @@ function makeModernTower(h) {
   const d = 11 + (h % 5);
   const glass = new THREE.MeshStandardMaterial({
     color: "#6a7684",
-    metalness: 0.62,
-    roughness: 0.22,
+    metalness: 0.7,
+    roughness: 0.12,
   });
   const frame = new THREE.MeshStandardMaterial({
     color: "#2c3036",
@@ -483,8 +483,8 @@ function makeLoopCar() {
   const g = new THREE.Group();
   const silver = new THREE.MeshStandardMaterial({
     color: "#d4d8de",
-    metalness: 0.62,
-    roughness: 0.22,
+    metalness: 0.72,
+    roughness: 0.14,
   });
   const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.3, 11.5), silver);
   const nose = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.8, 2.4), silver);
@@ -535,8 +535,8 @@ function buildUrbanLoop(root) {
     new THREE.TubeGeometry(curve, 96, 3.4, 8, true),
     new THREE.MeshStandardMaterial({
       color: "#8ec8dc",
-      metalness: 0.35,
-      roughness: 0.18,
+      metalness: 0.55,
+      roughness: 0.1,
       transparent: true,
       opacity: 0.22,
       side: THREE.DoubleSide,
@@ -736,8 +736,8 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
 
   const waterMat = decalMaterial(PALETTE.water, {
-    roughness: 0.18,
-    metalness: 0.42,
+    roughness: 0.08,
+    metalness: 0.62,
     emissive: new THREE.Color("#1c4a58"),
     emissiveIntensity: 0.28,
     factor: -4,

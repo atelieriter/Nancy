@@ -429,7 +429,7 @@ export function boxRoofGeometry(w, d, y, peakH) {
 export function goldMaterial(nightUniform) {
   const mat = new THREE.MeshStandardMaterial({
     color: PALETTE.gold,
-    roughness: 0.28,
+    roughness: 0.16,
     metalness: 0.72,
     emissive: PALETTE.goldBright,
     emissiveIntensity: 0.04,

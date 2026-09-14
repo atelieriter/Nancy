@@ -72,6 +72,21 @@ export function createSkyDome() {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
       }
 
+      float starLayer(vec2 uv, float scale, float thresh, float radius) {
+        vec2 p = uv * scale;
+        vec2 id = floor(p);
+        vec2 f = fract(p) - 0.5;
+        float rnd = hash(id);
+        float disc = smoothstep(radius, 0.0, length(f));
+        float bright = 0.18 + pow(rnd, 6.0) * 1.55;
+        return step(thresh, rnd) * disc * bright;
+      }
+
+      float cluster(vec3 dir, vec3 c, float tight, float amp) {
+        float d = 1.0 - max(dot(dir, normalize(c)), 0.0);
+        return amp * exp(-d * d * tight);
+      }
+
       void main() {
         vec3 dir = normalize(vPos);
         float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
@@ -79,25 +94,22 @@ export function createSkyDome() {
         vec3 col = mix(uHorizon, uTop, k);
 
         float n = uNight;
-        vec3 gaxis = normalize(vec3(0.22, 0.58, 0.78));
-        float gal = 1.0 - abs(dot(dir, gaxis));
-        float band = pow(smoothstep(0.42, 1.0, gal), 1.8);
-        vec3 milky = vec3(0.72, 0.68, 0.82) * band * n * 0.42;
-        milky += vec3(0.95, 0.9, 0.98) * pow(band, 5.0) * n * 0.38;
-        col += milky;
+        float cl =
+          cluster(dir, vec3(0.42, 0.62, -0.28), 34.0, 1.0) +
+          cluster(dir, vec3(-0.55, 0.48, 0.52), 40.0, 0.9) +
+          cluster(dir, vec3(0.12, -0.22, 0.92), 48.0, 0.75) +
+          cluster(dir, vec3(-0.72, 0.18, -0.48), 36.0, 0.85) +
+          cluster(dir, vec3(0.68, -0.38, 0.22), 44.0, 0.7) +
+          cluster(dir, vec3(-0.18, 0.78, 0.38), 52.0, 0.65) +
+          cluster(dir, vec3(0.33, -0.55, -0.62), 38.0, 0.8);
 
+        vec2 uv = vec2(atan(dir.z, dir.x) * 0.15915 + 0.5, acos(clamp(dir.y, -1.0, 1.0)) * 0.31831);
+        float field = 0.12 + cl;
         float stars = 0.0;
-        vec2 s1 = floor(dir.xy * 260.0 + dir.z * 17.0);
-        float h1 = hash(s1);
-        stars += step(0.984, h1) * pow(h1, 36.0);
-        vec2 s2 = floor(dir.xz * 420.0 + dir.y * 23.0);
-        float h2 = hash(s2 + 19.2);
-        stars += step(0.991, h2) * pow(h2, 70.0) * 1.4;
-        vec2 s3 = floor(dir.yz * 140.0 + dir.x * 9.0);
-        float h3 = hash(s3 + 71.4);
-        stars += step(0.996, h3) * pow(h3, 20.0) * 0.55;
-        stars *= 0.35 + band * 2.2;
-        col += vec3(1.0, 0.97, 0.92) * stars * n;
+        stars += starLayer(uv, 980.0, 1.0 - field * 0.14, 0.028);
+        stars += starLayer(uv + 0.17, 1480.0, 0.993, 0.018) * (0.45 + cl);
+        stars += starLayer(uv + 0.41, 640.0, 0.9972, 0.032) * (0.25 + cl * 0.9);
+        col += vec3(0.96, 0.94, 0.9) * stars * n;
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -228,7 +240,7 @@ export function createDebris() {
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
   const mat = new THREE.PointsMaterial({
-    size: 3.4,
+    size: 1.35,
     vertexColors: true,
     transparent: true,
     opacity: 0.2,
