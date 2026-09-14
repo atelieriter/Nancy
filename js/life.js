@@ -126,31 +126,26 @@ export function createSkyDome() {
   return mesh;
 }
 
-function makeOrbMesh(radius, opacity, renderOrder) {
-  const mat = new THREE.MeshBasicMaterial({
-    color: "#ffffff",
-    transparent: true,
-    opacity,
-    depthTest: true,
-    depthWrite: true,
-    fog: false,
-    toneMapped: false,
-  });
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 32), mat);
-  mesh.renderOrder = renderOrder;
-  mesh.frustumCulled = false;
-  return mesh;
-}
-
 function makeSkyOrb(radius) {
+  const mat = new THREE.MeshStandardMaterial({
+    color: "#fff6e4",
+    emissive: "#fff1c8",
+    emissiveIntensity: 1.15,
+    roughness: 0.38,
+    metalness: 0.08,
+    transparent: false,
+    fog: false,
+    depthWrite: true,
+    depthTest: true,
+  });
+  const core = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 32), mat);
+  core.castShadow = false;
+  core.receiveShadow = true;
+  core.frustumCulled = false;
   const g = new THREE.Group();
-  const halo = makeOrbMesh(radius * 1.06, 0.14, -13);
-  const core = makeOrbMesh(radius, 1, -12);
-  g.add(halo, core);
+  g.add(core);
   g.userData.core = core;
-  g.userData.halo = halo;
   g.userData.radius = radius;
-  g.renderOrder = -12;
   g.frustumCulled = false;
   return g;
 }
@@ -250,43 +245,54 @@ export function createCelestial() {
 
   const world = new THREE.Group();
   world.name = "horizon";
-  const sun = makeSkyOrb(720);
-  const moon = makeSkyOrb(680);
-  world.add(sun, moon);
+  const sun = makeSkyOrb(340);
+  world.add(sun);
 
-  return { group, world, sky, stars: null, sun, moon, debris };
+  return { group, world, sky, stars: null, sun, moon: null, debris };
 }
 
-export function applyCelestial(celestial, state) {
+export function applyCelestial(celestial, state, camera, lighting) {
   if (!celestial) return;
   const plate = plateauRect();
-  const az = state.az;
-  const dist = Math.hypot(plate.w, plate.d) * 0.5 + 820;
-  const dx = Math.cos(az) * dist;
-  const dz = Math.sin(az) * dist;
-  celestial.sun.position.set(plate.cx + dx, celestial.sun.userData.radius, plate.cz + dz);
-  celestial.moon.position.set(plate.cx - dx, celestial.moon.userData.radius, plate.cz - dz);
+  const cx = plate.cx;
+  const cz = plate.cz;
+  const camAz = camera
+    ? Math.atan2(camera.position.z - cz, camera.position.x - cx)
+    : state.az;
+  const farAz = camAz + Math.PI;
+  const swing = (state.hour / 24 - 0.5) * Math.PI * 0.82;
+  const az = farAz + swing;
+  const radius = celestial.sun.userData.radius;
+  const dist = Math.hypot(plate.w, plate.d) * 0.5 + radius + 180;
+  celestial.sun.position.set(cx + Math.cos(az) * dist, radius, cz + Math.sin(az) * dist);
+  celestial.sun.visible = true;
 
-  const sunAmt = THREE.MathUtils.clamp(1 - state.night * 1.35, 0, 1);
-  const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
-  celestial.sun.visible = sunAmt > 0.02;
-  celestial.moon.visible = moonAmt > 0.02;
-  celestial.sun.userData.core.material.opacity = sunAmt;
-  celestial.moon.userData.core.material.opacity = moonAmt;
-
+  const night = THREE.MathUtils.clamp(state.night, 0, 1);
   const h = state.hour;
-  let sunCol = "#fff6e4";
-  if (h >= 5 && h < 8.2) sunCol = "#f4b4c8";
-  else if (h >= 16.2 && h < 20.5) sunCol = "#ff4e2c";
-  celestial.sun.userData.core.material.color.set(sunCol);
-  if (celestial.sun.userData.halo) {
-    celestial.sun.userData.halo.material.color.set(sunCol);
-    celestial.sun.userData.halo.material.opacity = 0.1 + sunAmt * 0.06;
+  let sunCol = new THREE.Color("#fff6e4");
+  if (h >= 5 && h < 8.2) sunCol.set("#f4b4c8");
+  else if (h >= 16.2 && h < 20.5) sunCol.set("#ff4e2c");
+  const moonCol = new THREE.Color("#fffaf2");
+  sunCol.lerp(moonCol, THREE.MathUtils.smoothstep(night, 0.15, 0.72));
+
+  const mat = celestial.sun.userData.core.material;
+  mat.color.copy(sunCol);
+  mat.emissive.copy(sunCol);
+  mat.emissiveIntensity = 0.55 + (1 - night) * 0.85;
+  mat.opacity = 1;
+  mat.transparent = false;
+
+  if (lighting?.sun) {
+    lighting.sun.position.copy(celestial.sun.position);
+    lighting.sun.target.position.set(cx, 2, cz);
+    lighting.sun.target.updateMatrixWorld();
   }
-  celestial.moon.userData.core.material.color.set("#fffaf2");
-  if (celestial.moon.userData.halo) {
-    celestial.moon.userData.halo.material.color.set("#fff6e4");
-    celestial.moon.userData.halo.material.opacity = 0.1 + moonAmt * 0.06;
+  if (lighting?.moonLight) {
+    lighting.moonLight.position.copy(celestial.sun.position);
+    lighting.moonLight.target.position.set(cx, 2, cz);
+    lighting.moonLight.target.updateMatrixWorld();
+    lighting.moonLight.color.copy(sunCol);
+    lighting.moonLight.intensity = night * 1.35;
   }
 
   const u = celestial.sky.material.uniforms;
