@@ -126,10 +126,10 @@ function makeGlowMap() {
   c.width = c.height = 256;
   const ctx = c.getContext("2d");
   const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  g.addColorStop(0, "rgba(255,255,255,1)");
-  g.addColorStop(0.1, "rgba(255,255,255,0.9)");
-  g.addColorStop(0.22, "rgba(255,255,255,0.45)");
-  g.addColorStop(0.48, "rgba(255,255,255,0.12)");
+  g.addColorStop(0, "rgba(255,255,255,0.95)");
+  g.addColorStop(0.22, "rgba(255,255,255,0.35)");
+  g.addColorStop(0.48, "rgba(255,255,255,0.06)");
+  g.addColorStop(0.72, "rgba(255,255,255,0)");
   g.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 256, 256);
@@ -172,12 +172,10 @@ function makeSkyOrb(radius) {
       depthWrite: false,
     })
   );
-  const inner = glowSprite(radius * 6.2, 0.95);
-  const outer = glowSprite(radius * 13.5, 0.7);
-  g.add(outer, inner, core);
+  const inner = glowSprite(radius * 2.15, 0.55);
+  g.add(inner, core);
   g.userData.core = core;
   g.userData.halo = inner;
-  g.userData.haloOuter = outer;
   g.renderOrder = -12;
   g.frustumCulled = false;
   return g;
@@ -305,20 +303,12 @@ export function applyCelestial(celestial, state) {
   celestial.sun.userData.core.material.color.set(sunCol);
   if (celestial.sun.userData.halo) {
     celestial.sun.userData.halo.material.color.set(sunCol);
-    celestial.sun.userData.halo.material.opacity = 0.55 + sunAmt * 0.45;
-  }
-  if (celestial.sun.userData.haloOuter) {
-    celestial.sun.userData.haloOuter.material.color.set(sunCol);
-    celestial.sun.userData.haloOuter.material.opacity = 0.28 + sunAmt * 0.4;
+    celestial.sun.userData.halo.material.opacity = 0.28 + sunAmt * 0.22;
   }
   celestial.moon.userData.core.material.color.set("#fffaf2");
   if (celestial.moon.userData.halo) {
     celestial.moon.userData.halo.material.color.set("#fff6e4");
-    celestial.moon.userData.halo.material.opacity = 0.7 + moonAmt * 0.3;
-  }
-  if (celestial.moon.userData.haloOuter) {
-    celestial.moon.userData.haloOuter.material.color.set("#f3e6cc");
-    celestial.moon.userData.haloOuter.material.opacity = 0.4 + moonAmt * 0.45;
+    celestial.moon.userData.halo.material.opacity = 0.32 + moonAmt * 0.18;
   }
 
   const u = celestial.sky.material.uniforms;
