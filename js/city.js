@@ -777,14 +777,10 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
 
   const railGeos = [];
-  const railPts = [];
   for (const r of data.rails || []) {
     if (r.kind !== "rail" || (r.coords || []).length < 2) continue;
     const geo = ribbonGeometry(r.coords, 4.2);
     if (geo) railGeos.push(geo);
-    for (const c of r.coords) {
-      if (c[0] > 6.169 && c[0] < 6.179 && c[1] > 48.6865 && c[1] < 48.701) railPts.push(c);
-    }
   }
   const railsM = mergeBucket(railGeos);
   if (railsM) {
@@ -872,16 +868,33 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
 
   let railCurve = null;
-  if (railPts.length > 8) {
-    const bins = binnedPath(railPts, "lat", 4);
-    if (bins.length > 4) {
-      railCurve = new THREE.CatmullRomCurve3(
-        bins.map(([lon, lat]) => {
-          const p = toXZ(lon, lat);
-          return new THREE.Vector3(p.x, 1.4, p.z);
-        })
-      );
+  let bestRail = null;
+  let bestLen = 0;
+  for (const r of data.rails || []) {
+    if (r.kind !== "rail" || (r.coords || []).length < 4) continue;
+    const coords = r.coords.filter(
+      ([lon, lat]) => lon > 6.169 && lon < 6.179 && lat > 48.6865 && lat < 48.701
+    );
+    if (coords.length < 4) continue;
+    let len = 0;
+    for (let i = 1; i < coords.length; i++) {
+      len += Math.hypot(coords[i][0] - coords[i - 1][0], coords[i][1] - coords[i - 1][1]);
     }
+    const dlat = Math.abs(coords[coords.length - 1][1] - coords[0][1]);
+    const dlon = Math.abs(coords[coords.length - 1][0] - coords[0][0]);
+    if (dlat < dlon * 0.45) continue;
+    if (len > bestLen) {
+      bestLen = len;
+      bestRail = coords;
+    }
+  }
+  if (bestRail) {
+    const a = toXZ(bestRail[0][0], bestRail[0][1]);
+    const b = toXZ(bestRail[bestRail.length - 1][0], bestRail[bestRail.length - 1][1]);
+    railCurve = new THREE.LineCurve3(
+      new THREE.Vector3(a.x, 1.4, a.z),
+      new THREE.Vector3(b.x, 1.4, b.z)
+    );
   }
 
   const barges = [];
