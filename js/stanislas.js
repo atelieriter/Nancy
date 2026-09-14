@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { toXZ } from "./geo.js";
-import { PALETTE, facadeMaterial, roofMaterial, goldMaterial, boxRoofGeometry } from "./materials.js";
+import { PALETTE, facadeMaterial, roofMaterial, goldMaterial, boxRoofGeometry, snowCoverMaterial } from "./materials.js";
 
 /** Rectangle classique : 106 m × 124 m. Axe Héré : mairie → arche → Carrière. */
 export const SQUARE = { width: 106, depth: 124 };
@@ -349,15 +349,19 @@ function makeStatue() {
 
 function paving() {
   const g = new THREE.Group();
-  const ochre = new THREE.MeshStandardMaterial({
-    color: PALETTE.stanislas,
-    roughness: 0.72,
-    metalness: 0.02,
-  });
-  const dark = new THREE.MeshStandardMaterial({
-    color: "#ddd4c4",
-    roughness: 0.78,
-  });
+  const ochre = snowCoverMaterial(
+    new THREE.MeshStandardMaterial({
+      color: PALETTE.stanislas,
+      roughness: 0.72,
+      metalness: 0.02,
+    })
+  );
+  const dark = snowCoverMaterial(
+    new THREE.MeshStandardMaterial({
+      color: "#ddd4c4",
+      roughness: 0.78,
+    })
+  );
   const slab = new THREE.Mesh(new THREE.BoxGeometry(SQUARE.width, 0.12, SQUARE.depth), ochre);
   slab.position.y = 0.06;
   slab.receiveShadow = true;
@@ -392,10 +396,12 @@ export function makeStanislasEnsemble(nightUniform) {
   nw.position.set(-SQUARE.width / 2 + 22, 0, -SQUARE.depth / 2 - 11);
   root.add(opera, musee, nw, ne);
 
-  const throatMat = new THREE.MeshStandardMaterial({
-    color: PALETTE.stanislas,
-    roughness: 0.74,
-  });
+  const throatMat = snowCoverMaterial(
+    new THREE.MeshStandardMaterial({
+      color: PALETTE.stanislas,
+      roughness: 0.74,
+    })
+  );
   const sw = new THREE.Mesh(new THREE.BoxGeometry(52, 0.1, 18), throatMat);
   sw.position.set(-SQUARE.width / 2 - 20, 0.05, SQUARE.depth / 2 - 10);
   const se = sw.clone();

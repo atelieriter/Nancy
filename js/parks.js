@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { hash01, pointInRing, toXZ } from "./geo.js";
-import { PALETTE, goldMaterial } from "./materials.js";
+import { PALETTE, goldMaterial, snowCoverMaterial } from "./materials.js";
 import { AXIS_YAW } from "./stanislas.js";
 
 function rotXZ(lx, lz) {
@@ -14,7 +14,7 @@ function makeKiosk(nightUniform) {
   const stone = new THREE.MeshStandardMaterial({ color: "#e6d8c4", roughness: 0.55 });
   const roof = new THREE.Mesh(
     new THREE.ConeGeometry(6.4, 3.6, 8),
-    new THREE.MeshStandardMaterial({ color: PALETTE.roofSlate, roughness: 0.5 })
+    snowCoverMaterial(new THREE.MeshStandardMaterial({ color: PALETTE.roofSlate, roughness: 0.5 }))
   );
   roof.position.y = 8.4;
   const floor = new THREE.Mesh(new THREE.CylinderGeometry(5.6, 5.8, 0.35, 8), stone);
