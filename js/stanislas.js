@@ -32,66 +32,86 @@ function stone(nightUniform, hex, rough = 0.62) {
   return facadeMaterial(new THREE.Color(hex), nightUniform, { roughness: rough, warm: 1.05 });
 }
 
-export function makeLampPost(nightUniform, opts = {}) {
-  const g = new THREE.Group();
-  const iron = new THREE.MeshStandardMaterial({
+const LAMP = {};
+
+export function lampNightMaterials() {
+  return { lantern: LAMP.lantern, pool: LAMP.pool };
+}
+
+function lampKit(nightUniform) {
+  if (LAMP.lantern) return LAMP;
+  LAMP.iron = new THREE.MeshStandardMaterial({
     color: "#2a241c",
     metalness: 0.45,
     roughness: 0.42,
   });
-  const gold = goldMaterial(nightUniform);
-  gold.emissiveIntensity = 0.04;
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.16, 5.4, 8), gold);
+  LAMP.gold = goldMaterial(nightUniform);
+  LAMP.gold.emissiveIntensity = 0.04;
+  LAMP.lantern = new THREE.MeshStandardMaterial({
+    color: "#f3e2b0",
+    emissive: "#ffe7b0",
+    emissiveIntensity: 0.25,
+  });
+  LAMP.pool = new THREE.MeshBasicMaterial({
+    color: "#ffe08a",
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  LAMP.poleGeo = new THREE.CylinderGeometry(0.09, 0.16, 5.4, 6);
+  LAMP.baseGeo = new THREE.CylinderGeometry(0.32, 0.38, 0.45, 6);
+  LAMP.armGeo = new THREE.TorusGeometry(0.55, 0.05, 4, 8, Math.PI);
+  LAMP.lanternGeo = new THREE.BoxGeometry(0.42, 0.7, 0.42);
+  LAMP.hatGeo = new THREE.ConeGeometry(0.32, 0.28, 4);
+  LAMP.poolGeo = new THREE.CircleGeometry(7.6, 16);
+  return LAMP;
+}
+
+export function makeLampPost(nightUniform, opts = {}) {
+  const K = lampKit(nightUniform);
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(K.poleGeo, K.gold);
   pole.position.y = 2.7;
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.45, 8), iron);
+  const base = new THREE.Mesh(K.baseGeo, K.iron);
   base.position.y = 0.22;
-  const arm = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 5, 10, Math.PI), gold);
+  const arm = new THREE.Mesh(K.armGeo, K.gold);
   arm.rotation.z = Math.PI;
   arm.position.set(0, 5.35, 0);
-  const lantern = new THREE.Mesh(
-    new THREE.BoxGeometry(0.42, 0.7, 0.42),
-    new THREE.MeshStandardMaterial({
-      color: "#f3e2b0",
-      emissive: "#ffe7b0",
-      emissiveIntensity: 0.25,
-      transparent: true,
-      opacity: 0.94,
-    })
-  );
+  const lantern = new THREE.Mesh(K.lanternGeo, K.lantern);
   lantern.position.y = 5.85;
   lantern.userData.illuminate = "lamp";
-  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.28, 4), gold);
+  const hat = new THREE.Mesh(K.hatGeo, K.gold);
   hat.position.y = 6.32;
   hat.rotation.y = Math.PI / 4;
-  const pool = new THREE.Mesh(
-    new THREE.CircleGeometry(7.6, 22),
-    new THREE.MeshBasicMaterial({
-      color: "#ffe08a",
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    })
-  );
-  pool.rotation.x = -Math.PI / 2;
-  pool.position.y = 0.2;
-  pool.userData.illuminate = "lamp-ground";
-  g.add(pole, base, arm, lantern, hat, pool);
+  g.add(pole, base, arm, lantern, hat);
 
-  if (opts.withLight !== false) {
+  if (opts.withPool) {
+    const pool = new THREE.Mesh(K.poolGeo, K.pool);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.2;
+    pool.userData.illuminate = "lamp-ground";
+    g.add(pool);
+  }
+
+  if (opts.withLight) {
     const light = new THREE.PointLight("#ffe7b4", 0, 26, 1.55);
     light.position.y = 5.7;
     g.add(light);
     g.userData.light = light;
   }
   g.userData.globe = lantern;
+  g.traverse((o) => {
+    if (o.isMesh) o.castShadow = false;
+  });
   return g;
 }
 
 function placeLamp(parent, lights, nightUniform, x, z) {
-  const lamp = makeLampPost(nightUniform);
+  const withLight = lights.length < 6;
+  const lamp = makeLampPost(nightUniform, { withLight, withPool: withLight });
   lamp.position.set(x, 0, z);
   parent.add(lamp);
-  lights.push(lamp.userData.light);
+  if (lamp.userData.light) lights.push(lamp.userData.light);
 }
 
 function makePediment(w, d, nightUniform) {
@@ -462,13 +482,12 @@ export function scatterLamps(parent, lights, nightUniform, spots) {
   }
 }
 
-/** Lampadaires le long des rues, un tous les ~10 m. Peu de PointLights (budget GPU). */
+/** Lampadaires le long des rues (instances). Peu de PointLights. */
 export function lampsAlongRoads(parent, lights, nightUniform, roads, opts = {}) {
-  const spacing = opts.spacing ?? 10;
-  const maxMesh = opts.maxMesh ?? 360;
-  const maxLights = opts.maxLights ?? 32;
-  let meshes = 0;
-  let lit = 0;
+  const spacing = opts.spacing ?? 12;
+  const maxMesh = opts.maxMesh ?? 160;
+  const maxLights = opts.maxLights ?? 8;
+  const positions = [];
   for (const r of roads || []) {
     if (!["primary", "secondary", "tertiary", "residential", "pedestrian"].includes(r.highway)) continue;
     const coords = r.coords || [];
@@ -486,26 +505,50 @@ export function lampsAlongRoads(parent, lights, nightUniform, roads, opts = {}) 
         continue;
       }
       let t = 0;
-      while (acc + (seg - t) >= spacing && meshes < maxMesh) {
+      while (acc + (seg - t) >= spacing && positions.length < maxMesh) {
         const need = spacing - acc;
         t += need;
         const k = t / seg;
-        const x = prev.x + dx * k;
-        const z = prev.z + dz * k;
-        const withLight = lit < maxLights && meshes % 7 === 0;
-        const lamp = makeLampPost(nightUniform, { withLight });
-        lamp.position.set(x, 0, z);
-        parent.add(lamp);
-        if (withLight && lamp.userData.light) {
-          lights.push(lamp.userData.light);
-          lit += 1;
-        }
-        meshes += 1;
+        positions.push({ x: prev.x + dx * k, z: prev.z + dz * k });
         acc = 0;
       }
       acc += seg - t;
       prev = cur;
-      if (meshes >= maxMesh) return;
+      if (positions.length >= maxMesh) break;
     }
+    if (positions.length >= maxMesh) break;
+  }
+  const n = positions.length;
+  if (!n) return;
+  const K = lampKit(nightUniform);
+  const dummy = new THREE.Object3D();
+  const poles = new THREE.InstancedMesh(K.poleGeo, K.gold, n);
+  const lanterns = new THREE.InstancedMesh(K.lanternGeo, K.lantern, n);
+  poles.castShadow = false;
+  lanterns.castShadow = false;
+  poles.frustumCulled = false;
+  lanterns.frustumCulled = false;
+  for (let i = 0; i < n; i++) {
+    dummy.position.set(positions[i].x, 2.7, positions[i].z);
+    dummy.updateMatrix();
+    poles.setMatrixAt(i, dummy.matrix);
+    dummy.position.y = 5.85;
+    dummy.updateMatrix();
+    lanterns.setMatrixAt(i, dummy.matrix);
+  }
+  parent.add(poles, lanterns);
+
+  const step = Math.max(1, Math.floor(n / maxLights));
+  for (let i = 0, lit = 0; i < n && lit < maxLights; i += step) {
+    const light = new THREE.PointLight("#ffe7b4", 0, 28, 1.6);
+    light.position.set(positions[i].x, 5.7, positions[i].z);
+    parent.add(light);
+    lights.push(light);
+    const pool = new THREE.Mesh(K.poolGeo, K.pool);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(positions[i].x, 0.2, positions[i].z);
+    pool.userData.illuminate = "lamp-ground";
+    parent.add(pool);
+    lit += 1;
   }
 }

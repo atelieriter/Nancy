@@ -7,7 +7,7 @@ export function createLighting(scene) {
   const sun = new THREE.DirectionalLight("#fff4d6", 2.2);
   sun.position.set(180, 280, 80);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.near = 10;
   sun.shadow.camera.far = 900;
   sun.shadow.camera.left = -420;
@@ -131,16 +131,10 @@ export function applyDay(state, lighting, scene, nightUniform, weather = "sun") 
   const lampI = (0.22 + state.night * 6.4 + state.goldBoost * 0.8) * (snowOn ? 0.8 : 1);
   for (const s of lighting.spots || []) s.intensity = lampI;
 
-  scene.traverse((obj) => {
-    if (!obj.isMesh || !obj.material) return;
-    const mat = obj.material;
-    if (obj.userData.illuminate === "lamp" && mat.emissive) {
-      mat.emissiveIntensity = 0.28 + state.night * 1.85;
-    }
-    if (obj.userData.illuminate === "lamp-ground" && mat.opacity !== undefined) {
-      mat.opacity = state.night * 0.78;
-    }
-  });
+  if (lighting.lanternMat) {
+    lighting.lanternMat.emissiveIntensity = 0.28 + state.night * 1.85;
+  }
+  if (lighting.poolMat) lighting.poolMat.opacity = state.night * 0.78;
 }
 
 function smoothstep(a, b, x) {

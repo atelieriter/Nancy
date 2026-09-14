@@ -4,7 +4,7 @@ import { makeNightUniform } from "./materials.js";
 import { buildCity, LANDMARKS } from "./city.js";
 import { createLighting, sampleDay, applyDay } from "./lighting.js";
 import { createPrecip, updatePrecip } from "./weather.js";
-import { updateLife, createSkyDome } from "./life.js";
+import { updateLife, createCelestial, applyCelestial } from "./life.js";
 import { toXZ, plateauRect } from "./geo.js";
 
 const canvas = document.getElementById("c");
@@ -53,10 +53,10 @@ dockToggle?.addEventListener("click", () => {
   setPanel(dockEl, dockToggle, !dockEl.classList.contains("open"));
 });
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile(), powerPreference: "high-performance" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile() ? 1.2 : 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !isMobile();
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -85,8 +85,8 @@ controls.autoRotate = false;
 controls.touches.ONE = THREE.TOUCH.PAN;
 controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
 
-const sky = createSkyDome();
-scene.add(sky);
+const celestial = createCelestial();
+scene.add(celestial.group);
 
 const nightUniform = makeNightUniform();
 const lighting = createLighting(scene);
@@ -126,23 +126,7 @@ function periodOf(h) {
 function applyHour() {
   const state = sampleDay(hour);
   applyDay(state, lighting, scene, nightUniform, weather);
-  sky.visible = true;
-  const u = sky.material.uniforms;
-  u.uTop.value.copy(state.sky);
-  u.uHorizon.value.copy(state.horizon);
-
-  const sunDir = new THREE.Vector3(Math.cos(state.az), state.elev, Math.sin(state.az)).normalize();
-  const moonDir = new THREE.Vector3(-sunDir.x, Math.max(0.12, -sunDir.y), -sunDir.z).normalize();
-  u.uSunDir.value.copy(sunDir);
-  u.uMoonDir.value.copy(moonDir);
-  u.uSunAmt.value = THREE.MathUtils.clamp(1 - state.night * 1.35, 0, 1);
-  u.uMoonAmt.value = THREE.MathUtils.clamp(state.night * 1.25 - 0.12, 0, 1);
-  const h = state.hour;
-  if (h >= 5 && h < 8.2) u.uSunColor.value.set("#f4b4c8");
-  else if (h >= 16.2 && h < 20.5) u.uSunColor.value.set("#ff4e2c");
-  else u.uSunColor.value.set("#fff6e4");
-  u.uMoonColor.value.set("#f3f5fa");
-
+  applyCelestial(celestial, state);
   if (clockEl) clockEl.textContent = fmtHour(hour);
   if (periodEl) periodEl.textContent = periodOf(hour);
   document.body.classList.toggle("is-night", state.night > 0.48);
@@ -218,8 +202,7 @@ function animate() {
     if (fly.t >= 1) fly = null;
   }
   controls.update();
-  sky.position.copy(camera.position);
-  if (city?.stars) city.stars.position.copy(camera.position);
+  celestial.group.position.copy(camera.position);
   renderer.render(scene, camera);
 }
 
@@ -230,7 +213,10 @@ async function start() {
   const data = await res.json();
   setProgress(0.12, `${data.counts?.buildings ?? "—"} bâtiments · extrusion…`);
   city = await buildCity(scene, data, nightUniform, (t) => setProgress(t, "Pierre de Jaumont, toits d’ardoise…"));
+  city.stars = celestial.stars;
   lighting.spots = city.lampLights || [];
+  lighting.lanternMat = city.lampMats?.lantern;
+  lighting.poolMat = city.lampMats?.pool;
   applyHour();
   setProgress(1, "Cité des Ducs");
   await new Promise((r) => setTimeout(r, 280));

@@ -32,10 +32,11 @@ import {
   makePalaisGouverneur,
   scatterLamps,
   lampsAlongRoads,
+  lampNightMaterials,
   AXIS_YAW,
   SQUARE,
 } from "./stanislas.js";
-import { createStars, createRockets, createSatellites, makeVehicle } from "./life.js";
+import { createRockets, createSatellites, makeVehicle } from "./life.js";
 import { dressPepiniere, dressCarriere } from "./parks.js";
 
 export const LANDMARKS = [
@@ -531,7 +532,7 @@ function buildUrbanLoop(root) {
   ];
   const curve = new THREE.CatmullRomCurve3(pts, true, "catmullrom", 0.35);
   const tube = new THREE.Mesh(
-    new THREE.TubeGeometry(curve, 220, 3.4, 10, true),
+    new THREE.TubeGeometry(curve, 96, 3.4, 8, true),
     new THREE.MeshStandardMaterial({
       color: "#8ec8dc",
       metalness: 0.35,
@@ -542,7 +543,7 @@ function buildUrbanLoop(root) {
     })
   );
   const rail = new THREE.Mesh(
-    new THREE.TubeGeometry(curve, 220, 0.55, 6, true),
+    new THREE.TubeGeometry(curve, 96, 0.55, 5, true),
     new THREE.MeshStandardMaterial({
       color: "#cfd6de",
       metalness: 0.7,
@@ -901,8 +902,7 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
     }
   }
 
-  const stars = createStars();
-  scene.add(stars);
+  const stars = null;
   const rockets = createRockets();
   scene.add(rockets.group);
   const satellites = createSatellites();
@@ -925,6 +925,19 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
     scene.add(mesh);
     flyers.push({ mesh, curve, t: t0, speed, bob, threshold });
   };
+  const spawnLine = (ax, ay, az, bx, by, bz, kind, speed, threshold, t0, bob) => {
+    const mesh = makeVehicle(kind);
+    scene.add(mesh);
+    flyers.push({
+      mesh,
+      a: new THREE.Vector3(ax, ay, az),
+      b: new THREE.Vector3(bx, by, bz),
+      t: t0,
+      speed,
+      bob,
+      threshold,
+    });
+  };
 
   const routes = [];
   for (const r of data.roads || []) {
@@ -939,45 +952,25 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   routes.sort((a, b) => b.coords.length - a.coords.length);
 
   const half = 820;
-  const heights = [8, 12, 17, 23, 30, 38, 48, 58];
-  const nsXs = [-560, -400, -240, -80, 80, 240, 400, 560];
+  const heights = [8, 14, 22, 32, 44, 56];
+  const nsXs = [-480, -240, -80, 80, 280, 520];
   for (let i = 0; i < nsXs.length; i++) {
     const x = nsXs[i];
     const y = heights[i % heights.length];
-    const go = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(x, y, -half),
-      new THREE.Vector3(x, y, 0),
-      new THREE.Vector3(x, y, half),
-    ]);
-    const back = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(x + 10, y + 2.4, half),
-      new THREE.Vector3(x + 10, y + 2.4, 0),
-      new THREE.Vector3(x + 10, y + 2.4, -half),
-    ]);
-    const n = 7;
+    const n = 4;
     for (let k = 0; k < n; k++) {
-      spawn(go, kinds[(i + k) % kinds.length], 0.016 + (i % 4) * 0.003, 0.04, k / n, i + k);
-      spawn(back, kinds[(i + k + 2) % kinds.length], 0.015 + (k % 3) * 0.003, 0.05, (k + 0.45) / n, i * 2 + k);
+      spawnLine(x, y, -half, x, y, half, kinds[(i + k) % kinds.length], 0.016 + (i % 3) * 0.003, 0.04, k / n, i + k);
+      spawnLine(x + 10, y + 2.4, half, x + 10, y + 2.4, -half, kinds[(i + k + 2) % kinds.length], 0.015, 0.05, (k + 0.45) / n, i * 2 + k);
     }
   }
-  const ewZs = [-500, -340, -180, -40, 100, 260, 420];
+  const ewZs = [-420, -180, 40, 260, 480];
   for (let i = 0; i < ewZs.length; i++) {
     const z = ewZs[i];
-    const y = heights[(i + 3) % heights.length];
-    const go = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-half, y, z),
-      new THREE.Vector3(0, y, z),
-      new THREE.Vector3(half, y, z),
-    ]);
-    const back = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(half, y + 2.6, z + 10),
-      new THREE.Vector3(0, y + 2.6, z + 10),
-      new THREE.Vector3(-half, y + 2.6, z + 10),
-    ]);
-    const n = 7;
+    const y = heights[(i + 2) % heights.length];
+    const n = 4;
     for (let k = 0; k < n; k++) {
-      spawn(go, kinds[(i + k + 1) % kinds.length], 0.015 + (i % 3) * 0.003, 0.04, k / n, i + 20 + k);
-      spawn(back, kinds[(i + k + 3) % kinds.length], 0.014 + (k % 4) * 0.003, 0.05, (k + 0.4) / n, i + 30 + k);
+      spawnLine(-half, y, z, half, y, z, kinds[(i + k + 1) % kinds.length], 0.015 + (i % 3) * 0.003, 0.04, k / n, i + 20 + k);
+      spawnLine(half, y + 2.6, z + 10, -half, y + 2.6, z + 10, kinds[(i + k + 3) % kinds.length], 0.014, 0.05, (k + 0.4) / n, i + 30 + k);
     }
   }
 
@@ -991,10 +984,8 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
   const axisCurve = new THREE.CatmullRomCurve3(axis);
   spawn(axisCurve, "car", 0.022, 0.08, 0.05, 0.4);
-  spawn(axisCurve, "scooter", 0.028, 0.1, 0.22, 1.1);
-  spawn(axisCurve, "car", 0.02, 0.08, 0.48, 2.2);
-  spawn(axisCurve, "pod", 0.024, 0.1, 0.72, 0.8);
-  spawn(axisCurve, "scooter", 0.03, 0.12, 0.88, 1.6);
+  spawn(axisCurve, "scooter", 0.028, 0.1, 0.48, 1.1);
+  spawn(axisCurve, "pod", 0.024, 0.1, 0.78, 0.8);
   const cross = [];
   for (let i = -6; i <= 6; i++) {
     const lx = 0;
@@ -1005,30 +996,33 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
   }
   const crossCurve = new THREE.CatmullRomCurve3(cross);
   spawn(crossCurve, "pod", 0.024, 0.08, 0.12, 0.6);
-  spawn(crossCurve, "car", 0.02, 0.08, 0.4, 1.8);
-  spawn(crossCurve, "scooter", 0.026, 0.1, 0.68, 0.3);
-  spawn(crossCurve, "car", 0.018, 0.1, 0.88, 2.4);
+  spawn(crossCurve, "car", 0.02, 0.08, 0.55, 1.8);
 
-  const used = Math.min(52, routes.length);
+  const used = Math.min(16, routes.length);
   for (let i = 0; i < used; i++) {
-    const alt = 6 + (i % 6) * 3.8;
+    const alt = 6 + (i % 5) * 4.2;
     const pts = routes[i].coords.map(([lon, lat]) => {
       const q = toXZ(lon, lat);
       return new THREE.Vector3(q.x, alt, q.z);
     });
     if (pts.length < 2) continue;
     const curve = new THREE.CatmullRomCurve3(pts);
-    const copies = i < 20 ? 5 : 3;
-    for (let k = 0; k < copies; k++) {
-      spawn(
-        curve,
-        kinds[(i + k) % kinds.length],
-        0.012 + (i % 5) * 0.003,
-        0.04 + ((i * 0.03 + k * 0.05) % 0.28),
-        (k * 0.29 + i * 0.11) % 1,
-        i * 0.8 + k
-      );
-    }
+    spawn(
+      curve,
+      kinds[i % kinds.length],
+      0.012 + (i % 5) * 0.003,
+      0.04 + (i * 0.03) % 0.28,
+      (i * 0.17) % 1,
+      i * 0.8
+    );
+    spawn(
+      curve,
+      kinds[(i + 2) % kinds.length],
+      0.013 + (i % 4) * 0.002,
+      0.08,
+      (i * 0.17 + 0.5) % 1,
+      i * 0.8 + 1
+    );
   }
 
   onProgress?.(0.92);
@@ -1046,5 +1040,6 @@ export async function buildCity(scene, data, nightUniform, onProgress) {
     satellites,
     flyers,
     loop,
+    lampMats: lampNightMaterials(),
   };
 }

@@ -45,7 +45,7 @@ export function updateLife(city, dt, night, hour = 12) {
 }
 
 export function createSkyDome() {
-  const geo = new THREE.SphereGeometry(2800, 48, 28);
+  const geo = new THREE.SphereGeometry(2800, 24, 16);
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
@@ -53,12 +53,6 @@ export function createSkyDome() {
     uniforms: {
       uTop: { value: new THREE.Color("#9ec9e8") },
       uHorizon: { value: new THREE.Color("#dbeaf4") },
-      uSunDir: { value: new THREE.Vector3(0.35, 0.85, 0.4) },
-      uMoonDir: { value: new THREE.Vector3(-0.35, 0.7, -0.4) },
-      uSunColor: { value: new THREE.Color("#fff6e4") },
-      uMoonColor: { value: new THREE.Color("#f3f5fa") },
-      uSunAmt: { value: 1 },
-      uMoonAmt: { value: 0 },
     },
     vertexShader: `
       varying vec3 vPos;
@@ -70,47 +64,99 @@ export function createSkyDome() {
     fragmentShader: `
       uniform vec3 uTop;
       uniform vec3 uHorizon;
-      uniform vec3 uSunDir;
-      uniform vec3 uMoonDir;
-      uniform vec3 uSunColor;
-      uniform vec3 uMoonColor;
-      uniform float uSunAmt;
-      uniform float uMoonAmt;
       varying vec3 vPos;
       void main() {
         vec3 dir = normalize(vPos);
         float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
         float k = smoothstep(0.4, 0.66, h);
-        vec3 col = mix(uHorizon, uTop, k);
-
-        float sunDot = max(dot(dir, normalize(uSunDir)), 0.0);
-        float sunDisc = smoothstep(0.993, 0.9985, sunDot);
-        float sunGlow = pow(sunDot, 18.0);
-        col += uSunColor * (sunDisc * 2.4 + sunGlow * 0.55) * uSunAmt;
-
-        float moonDot = max(dot(dir, normalize(uMoonDir)), 0.0);
-        float moonDisc = smoothstep(0.9945, 0.9988, moonDot);
-        float moonGlow = pow(moonDot, 48.0);
-        col += uMoonColor * (moonDisc * 1.55 + moonGlow * 0.22) * uMoonAmt;
-
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = vec4(mix(uHorizon, uTop, k), 1.0);
       }
     `,
   });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.renderOrder = -10;
+  mesh.renderOrder = -20;
   mesh.frustumCulled = false;
   return mesh;
 }
 
+function makeSkyOrb(radius, glowScale) {
+  const g = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 20, 16),
+    new THREE.MeshBasicMaterial({ color: "#ffffff", fog: false, toneMapped: false, depthWrite: false })
+  );
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * glowScale, 16, 12),
+    new THREE.MeshBasicMaterial({
+      color: "#ffffff",
+      transparent: true,
+      opacity: 0.28,
+      fog: false,
+      toneMapped: false,
+      depthWrite: false,
+    })
+  );
+  g.add(halo, core);
+  g.userData.core = core;
+  g.userData.halo = halo;
+  g.renderOrder = -12;
+  g.frustumCulled = false;
+  return g;
+}
+
+/** Ciel + astres + étoiles, calés sur la caméra (fond infini, rotation monde). */
+export function createCelestial() {
+  const group = new THREE.Group();
+  group.name = "celestial";
+  group.frustumCulled = false;
+  const sky = createSkyDome();
+  const stars = createStars();
+  const sun = makeSkyOrb(95, 2.7);
+  const moon = makeSkyOrb(62, 2.2);
+  group.add(sky, stars, sun, moon);
+  return { group, sky, stars, sun, moon };
+}
+
+export function applyCelestial(celestial, state) {
+  if (!celestial) return;
+  const dist = 2100;
+  const az = state.az;
+  const visY = 0.22 + Math.max(0, state.elev) * 0.2;
+  const sunDir = new THREE.Vector3(Math.cos(az), visY, Math.sin(az)).normalize();
+  const moonDir = new THREE.Vector3(-Math.cos(az), 0.28, -Math.sin(az)).normalize();
+  celestial.sun.position.copy(sunDir).multiplyScalar(dist);
+  celestial.moon.position.copy(moonDir).multiplyScalar(dist);
+
+  const sunAmt = THREE.MathUtils.clamp(1 - state.night * 1.35, 0, 1);
+  const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
+  celestial.sun.visible = sunAmt > 0.04;
+  celestial.moon.visible = moonAmt > 0.05;
+
+  const h = state.hour;
+  let sunCol = "#fff6e4";
+  if (h >= 5 && h < 8.2) sunCol = "#f4b4c8";
+  else if (h >= 16.2 && h < 20.5) sunCol = "#ff4e2c";
+  celestial.sun.userData.core.material.color.set(sunCol);
+  celestial.sun.userData.halo.material.color.set(sunCol);
+  celestial.sun.userData.halo.material.opacity = 0.18 + sunAmt * 0.28;
+  celestial.moon.userData.core.material.color.set("#f4f6fb");
+  celestial.moon.userData.halo.material.color.set("#d7e0f0");
+  celestial.moon.userData.halo.material.opacity = 0.16 + moonAmt * 0.22;
+
+  const u = celestial.sky.material.uniforms;
+  u.uTop.value.copy(state.sky);
+  u.uHorizon.value.copy(state.horizon);
+  updateStars(celestial.stars, state.night);
+}
+
 export function createStars() {
-  const n = 2800;
+  const n = 1400;
   const pos = new Float32Array(n * 3);
   const col = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
     const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(0.02 + Math.random() * 0.98);
-    const r = 1260;
+    const phi = Math.acos(0.02 + Math.random() * 0.92);
+    const r = 2480;
     pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
     pos[i * 3 + 1] = r * Math.cos(phi);
     pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
@@ -123,15 +169,19 @@ export function createStars() {
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
   const mat = new THREE.PointsMaterial({
-    size: 3.2,
+    size: 3.4,
     vertexColors: true,
     transparent: true,
     opacity: 0,
     depthWrite: false,
+    sizeAttenuation: false,
     blending: THREE.AdditiveBlending,
+    fog: false,
+    toneMapped: false,
   });
   const points = new THREE.Points(geo, mat);
   points.frustumCulled = false;
+  points.renderOrder = -14;
   return points;
 }
 
@@ -378,96 +428,87 @@ export function makeFlyer() {
   return makeVehicle("car");
 }
 
-function lamp(color, w, h, d) {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.15 })
-  );
+const VEH = { hull: [], n: 0 };
+
+function vehicleMats() {
+  if (VEH.glass) return VEH;
+  const hulls = ["#c8c2b6", "#d8d2c8", "#8a9098", "#2a2c30", "#e8e4dc"];
+  VEH.hull = hulls.map((c) => new THREE.MeshLambertMaterial({ color: c }));
+  VEH.glass = new THREE.MeshLambertMaterial({
+    color: "#8ec4e8",
+    transparent: true,
+    opacity: 0.48,
+  });
+  VEH.glow = new THREE.MeshBasicMaterial({ color: "#ffe08a", transparent: true, opacity: 0.18 });
+  VEH.head = new THREE.MeshBasicMaterial({ color: "#fff4c8", transparent: true, opacity: 0.14 });
+  VEH.tail = new THREE.MeshBasicMaterial({ color: "#ff4a3a", transparent: true, opacity: 0.14 });
+  return VEH;
+}
+
+function lamp(mat, w, h, d) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   mesh.userData.nightLamp = true;
   return mesh;
 }
 
 export function makeVehicle(kind = "car") {
+  const M = vehicleMats();
   const g = new THREE.Group();
-  const hullC = flyerPaint();
-  const glass = new THREE.MeshStandardMaterial({
-    color: "#8ec4e8",
-    transparent: true,
-    opacity: 0.5,
-    metalness: 0.2,
-    roughness: 0.15,
-    emissive: new THREE.Color("#c8e8ff"),
-    emissiveIntensity: 0,
-  });
-  const metal = new THREE.MeshStandardMaterial({
-    color: hullC,
-    metalness: 0.55,
-    roughness: 0.28,
-    emissive: new THREE.Color("#3a2a18"),
-    emissiveIntensity: 0,
-  });
+  const metal = M.hull[VEH.n++ % M.hull.length];
   const lamps = [];
   if (kind === "scooter") {
     const deck = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.28, 0.95), metal);
     const stem = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.35, 0.22), metal);
     stem.position.set(1.05, 0.75, 0);
-    const glow = new THREE.Mesh(
-      new THREE.BoxGeometry(2.2, 0.12, 0.6),
-      new THREE.MeshBasicMaterial({ color: "#ffe08a", transparent: true, opacity: 0.2 })
-    );
+    const glow = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 0.6), M.glow);
     glow.position.y = -0.28;
-    glow.userData.nightLamp = true;
-    const head = lamp("#fff4c8", 0.18, 0.18, 0.18);
+    const head = lamp(M.head, 0.18, 0.18, 0.18);
     head.position.set(1.55, 0.55, 0);
-    const tail = lamp("#ff4a3a", 0.16, 0.16, 0.16);
+    const tail = lamp(M.tail, 0.16, 0.16, 0.16);
     tail.position.set(-1.5, 0.22, 0);
     g.add(deck, stem, glow, head, tail);
     lamps.push(glow, head, tail);
   } else if (kind === "pod") {
-    const body = new THREE.Mesh(new THREE.SphereGeometry(1.45, 8, 6), metal);
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1.45, 6, 5), metal);
     body.scale.set(1.2, 0.75, 1);
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.72, 8, 5), glass);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.72, 6, 4), M.glass);
     cap.position.y = 0.45;
-    const glow = new THREE.Mesh(
-      new THREE.CircleGeometry(1.0, 8),
-      new THREE.MeshBasicMaterial({ color: "#ffe08a", side: THREE.DoubleSide, transparent: true, opacity: 0.2 })
-    );
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(1.0, 8), M.glow);
     glow.rotation.x = Math.PI / 2;
     glow.position.y = -0.7;
-    glow.userData.nightLamp = true;
-    const head = lamp("#fff4c8", 0.28, 0.2, 0.22);
+    const head = lamp(M.head, 0.28, 0.2, 0.22);
     head.position.set(1.5, 0.05, 0);
-    const tail = lamp("#ff3a32", 0.24, 0.18, 0.2);
+    const tail = lamp(M.tail, 0.24, 0.18, 0.2);
     tail.position.set(-1.45, 0.05, 0);
     g.add(body, cap, glow, head, tail);
     lamps.push(glow, head, tail);
   } else {
     const hull = new THREE.Mesh(new THREE.BoxGeometry(7.6, 1.55, 3.1), metal);
     const canopy = new THREE.Mesh(
-      new THREE.SphereGeometry(0.95, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2),
-      glass
+      new THREE.SphereGeometry(0.95, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2),
+      M.glass
     );
     canopy.position.set(0.7, 0.62, 0);
-    const glow = new THREE.Mesh(
-      new THREE.BoxGeometry(5.2, 0.14, 1.8),
-      new THREE.MeshBasicMaterial({ color: "#ffe08a", transparent: true, opacity: 0.2 })
-    );
+    const glow = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.14, 1.8), M.glow);
     glow.position.y = -0.78;
-    glow.userData.nightLamp = true;
-    const hl = lamp("#fff6d0", 0.22, 0.22, 0.28);
-    const hr = lamp("#fff6d0", 0.22, 0.22, 0.28);
+    const hl = lamp(M.head, 0.22, 0.22, 0.28);
+    const hr = lamp(M.head, 0.22, 0.22, 0.28);
     hl.position.set(3.7, 0.15, 1.05);
     hr.position.set(3.7, 0.15, -1.05);
-    const tl = lamp("#ff2e28", 0.2, 0.2, 0.22);
-    const tr = lamp("#ff2e28", 0.2, 0.2, 0.22);
+    const tl = lamp(M.tail, 0.2, 0.2, 0.22);
+    const tr = lamp(M.tail, 0.2, 0.2, 0.22);
     tl.position.set(-3.7, 0.2, 1.05);
     tr.position.set(-3.7, 0.2, -1.05);
     g.add(hull, canopy, glow, hl, hr, tl, tr);
     lamps.push(glow, hl, hr, tl, tr);
   }
+  g.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = false;
+      o.receiveShadow = false;
+    }
+  });
   g.userData.nightLamps = lamps;
-  g.userData.hull = metal;
-  g.userData.glass = glass;
   return g;
 }
 
@@ -486,26 +527,36 @@ export function trafficLevel(hour) {
   return THREE.MathUtils.clamp(0.28 + day * 0.62 + rush * 0.18, 0.28, 1);
 }
 
+const _fp = new THREE.Vector3();
+const _fl = new THREE.Vector3();
+let flyerLit = -1;
+
 export function updateFlyers(flyers, dt, night, hour) {
   if (!flyers?.length) return;
   const level = trafficLevel(hour);
-  const lit = night > 0.22;
+  const lit = night > 0.22 ? 1 : 0;
+  if (flyerLit !== lit) {
+    flyerLit = lit;
+    const M = vehicleMats();
+    M.glow.opacity = lit ? 0.9 : 0.12;
+    M.head.opacity = lit ? 0.95 : 0.12;
+    M.tail.opacity = lit ? 0.95 : 0.12;
+  }
   for (const f of flyers) {
     const on = level >= (f.threshold ?? 0.22);
     f.mesh.visible = on;
-    if (f.mesh.userData.hull) f.mesh.userData.hull.emissiveIntensity = lit ? 0.22 : 0;
-    if (f.mesh.userData.glass) f.mesh.userData.glass.emissiveIntensity = lit ? 0.55 : 0;
-    for (const lamp of f.mesh.userData.nightLamps || []) {
-      lamp.visible = on;
-      if (lamp.material) lamp.material.opacity = lit ? 0.95 : 0.12;
-    }
-    if (!on || !f.curve) continue;
+    if (!on || (!f.curve && !f.a)) continue;
     f.t = (f.t + dt * f.speed * (0.65 + level * 0.9)) % 1;
-    const p = f.curve.getPointAt(f.t);
-    const look = f.curve.getPointAt((f.t + 0.012) % 1);
-    p.y += Math.sin(f.t * Math.PI * 8 + f.bob) * 0.55;
-    f.mesh.position.copy(p);
-    f.mesh.lookAt(look);
+    if (f.a && f.b) {
+      _fp.lerpVectors(f.a, f.b, f.t);
+      _fl.lerpVectors(f.a, f.b, Math.min(0.999, f.t + 0.012));
+    } else {
+      f.curve.getPointAt(f.t, _fp);
+      f.curve.getPointAt((f.t + 0.012) % 1, _fl);
+    }
+    _fp.y += Math.sin(f.t * Math.PI * 8 + f.bob) * 0.55;
+    f.mesh.position.copy(_fp);
+    f.mesh.lookAt(_fl);
   }
 }
 
