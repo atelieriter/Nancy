@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { plateauRect } from "./geo.js";
 import { AXIS_YAW, SQUARE } from "./stanislas.js";
 
 export function updateLife(city, dt, night, hour = 12) {
@@ -125,47 +126,28 @@ export function createSkyDome() {
   return mesh;
 }
 
-function makeHardDiscMap() {
-  const size = 512;
-  const c = document.createElement("canvas");
-  c.width = c.height = size;
-  const ctx = c.getContext("2d");
-  ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-let DISC_MAP;
-
-function discSprite(scale, opacity, renderOrder) {
-  if (!DISC_MAP) DISC_MAP = makeHardDiscMap();
-  const mat = new THREE.SpriteMaterial({
-    map: DISC_MAP,
+function makeDisc(radius, opacity, renderOrder) {
+  const mat = new THREE.MeshBasicMaterial({
     color: "#ffffff",
-    blending: THREE.NormalBlending,
     transparent: true,
     opacity,
     depthTest: true,
     depthWrite: false,
     fog: false,
     toneMapped: false,
+    side: THREE.DoubleSide,
   });
-  const s = new THREE.Sprite(mat);
-  s.scale.set(scale, scale, 1);
-  s.renderOrder = renderOrder;
-  s.frustumCulled = false;
-  return s;
+  const mesh = new THREE.Mesh(new THREE.CircleGeometry(radius, 64), mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.renderOrder = renderOrder;
+  mesh.frustumCulled = false;
+  return mesh;
 }
 
 function makeSkyOrb(radius) {
   const g = new THREE.Group();
-  const d = radius * 2;
-  const halo = discSprite(d * 1.07, 0.14, -13);
-  const core = discSprite(d, 1, -12);
+  const halo = makeDisc(radius * 1.07, 0.14, -13);
+  const core = makeDisc(radius, 1, -12);
   g.add(halo, core);
   g.userData.core = core;
   g.userData.halo = halo;
@@ -269,8 +251,8 @@ export function createCelestial() {
 
   const world = new THREE.Group();
   world.name = "horizon";
-  const sun = makeSkyOrb(800);
-  const moon = makeSkyOrb(760);
+  const sun = makeSkyOrb(720);
+  const moon = makeSkyOrb(680);
   world.add(sun, moon);
 
   return { group, world, sky, stars: null, sun, moon, debris };
@@ -278,11 +260,14 @@ export function createCelestial() {
 
 export function applyCelestial(celestial, state) {
   if (!celestial) return;
-  const dist = 3200;
+  const plate = plateauRect();
   const az = state.az;
-  const y = 72;
-  celestial.sun.position.set(Math.cos(az) * dist, y, Math.sin(az) * dist);
-  celestial.moon.position.set(-Math.cos(az) * dist, y, -Math.sin(az) * dist);
+  const dist = Math.hypot(plate.w, plate.d) * 0.5 + 820;
+  const y = 6;
+  const dx = Math.cos(az) * dist;
+  const dz = Math.sin(az) * dist;
+  celestial.sun.position.set(plate.cx + dx, y, plate.cz + dz);
+  celestial.moon.position.set(plate.cx - dx, y, plate.cz - dz);
 
   const sunAmt = THREE.MathUtils.clamp(1 - state.night * 1.35, 0, 1);
   const moonAmt = THREE.MathUtils.clamp(state.night * 1.2 - 0.08, 0, 1);
